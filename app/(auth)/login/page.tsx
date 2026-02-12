@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
-import { CalendarDays, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import Image from "next/image";
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
@@ -49,8 +50,14 @@ export default function LoginPage() {
             >
                 {/* Logo */}
                 <div className="mb-8 text-center">
-                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-cyber-blue/15 text-cyber-blue">
-                        <CalendarDays className="h-6 w-6" />
+                    <div className="mx-auto mb-3 flex h-20 w-20 items-center justify-center">
+                        <Image
+                            src="/logo.png"
+                            alt="Logo"
+                            width={80}
+                            height={80}
+                            className="object-contain drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]"
+                        />
                     </div>
                     <h1 className="text-xl font-bold text-foreground">المخطط الأسبوعي</h1>
                     <p className="mt-1 text-xs text-muted-foreground">

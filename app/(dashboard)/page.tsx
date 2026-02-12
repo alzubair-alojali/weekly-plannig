@@ -62,12 +62,6 @@ export default function DashboardPage() {
       animate="show"
       className="space-y-6"
     >
-      {/* Page Header */}
-      <motion.div variants={fadeUp} className="space-y-1">
-        <h2 className="text-2xl font-bold text-foreground">مرحباً بك 👋</h2>
-        <p className="text-sm text-muted-foreground">{weekRange}</p>
-      </motion.div>
-
       {/* Stats Grid */}
       <motion.div
         variants={fadeUp}

@@ -29,26 +29,21 @@ export function WeekNavigator({ onStartReview }: WeekNavigatorProps) {
 
     return (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            {/* Week label */}
-            <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold text-foreground">المخطط الأسبوعي</h2>
-                    <span className="rounded-full bg-cyber-blue/10 border border-cyber-blue/20 px-2.5 py-0.5 text-xs font-semibold text-cyber-blue">
-                        الأسبوع {weekNumber} / 52
-                    </span>
-                </div>
-                <p className="text-sm text-muted-foreground">{weekRange}</p>
+            {/* Week Number (Restored) */}
+            <div className="flex items-center gap-3">
+                <span className="text-xl font-bold text-foreground">الأسبوع {weekNumber}</span>
             </div>
 
             {/* Navigation controls */}
             <div className="flex items-center gap-2">
                 <CyberButton
                     variant="ghost"
-                    size="icon"
-                    onClick={goToNextWeek}
-                    aria-label="الأسبوع القادم"
+                    size="sm"
+                    onClick={goToPrevWeek}
+                    className="gap-2 pe-1"
                 >
-                    <ChevronLeft className="h-4 w-4" />
+                    <span className="text-sm font-medium">السابق</span>
+                    <ChevronRight className="h-4 w-4" />
                 </CyberButton>
 
                 <CyberButton
@@ -63,11 +58,12 @@ export function WeekNavigator({ onStartReview }: WeekNavigatorProps) {
 
                 <CyberButton
                     variant="ghost"
-                    size="icon"
-                    onClick={goToPrevWeek}
-                    aria-label="الأسبوع السابق"
+                    size="sm"
+                    onClick={goToNextWeek}
+                    className="gap-2 ps-1"
                 >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="text-sm font-medium">التالي</span>
                 </CyberButton>
 
                 {/* Review button */}
