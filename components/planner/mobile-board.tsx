@@ -51,7 +51,7 @@ export function MobileBoard({ onEditTask }: MobileBoardProps) {
                                 >
                                     <span>{col.label}</span>
                                     {today && (
-                                        <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-cyber-blue" />
+                                        <span className="me-1 inline-block h-1.5 w-1.5 rounded-full bg-cyber-blue" />
                                     )}
                                 </TabsTrigger>
                             );

@@ -29,7 +29,7 @@ export function DesktopBoard({ onEditTask }: DesktopBoardProps) {
     return (
         <div className="hidden md:block">
             <ScrollArea className="w-full" dir="rtl">
-                <div className={cn("flex gap-3 pb-4", "min-w-max")}>
+                <div dir="rtl" className={cn("flex gap-3 pb-4", "min-w-max")}>
                     {columns.map((col) => (
                         <DayColumn
                             key={col.id}

@@ -11,7 +11,6 @@ import {
     Trophy,
     ClipboardCheck,
     ArrowLeft,
-    Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchAllWeeks } from "@/lib/supabase-weeks";
@@ -40,6 +39,56 @@ interface WeekCardData {
     weekRow: WeekRow;
     taskCount: number;
     completedCount: number;
+}
+
+// ── Skeleton Card ──
+function WeekCardSkeleton() {
+    return (
+        <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4 space-y-3">
+            {/* Header skeleton */}
+            <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                    <div className="h-9 w-9 rounded-lg bg-slate-800 animate-pulse" />
+                    <div className="space-y-1.5">
+                        <div className="h-4 w-32 rounded bg-slate-800 animate-pulse" />
+                        <div className="h-3 w-44 rounded bg-slate-800/60 animate-pulse" />
+                    </div>
+                </div>
+                <div className="h-5 w-20 rounded-full bg-slate-800/40 animate-pulse" />
+            </div>
+            {/* Challenge skeleton */}
+            <div className="h-8 w-full rounded-lg bg-slate-800/30 animate-pulse" />
+            {/* Progress bar skeleton */}
+            <div className="space-y-1.5">
+                <div className="flex justify-between">
+                    <div className="h-3 w-12 rounded bg-slate-800/50 animate-pulse" />
+                    <div className="h-3 w-20 rounded bg-slate-800/50 animate-pulse" />
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-slate-800 animate-pulse" />
+            </div>
+        </div>
+    );
+}
+
+function WeeksGridSkeleton() {
+    return (
+        <div className="space-y-6">
+            {/* Header skeleton */}
+            <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-lg bg-slate-800 animate-pulse" />
+                <div className="space-y-1.5">
+                    <div className="h-6 w-28 rounded bg-slate-800 animate-pulse" />
+                    <div className="h-4 w-40 rounded bg-slate-800/60 animate-pulse" />
+                </div>
+            </div>
+            {/* Cards skeleton grid */}
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                    <WeekCardSkeleton key={i} />
+                ))}
+            </div>
+        </div>
+    );
 }
 
 function WeekCard({ week }: { week: WeekCardData }) {
@@ -92,31 +141,27 @@ function WeekCard({ week }: { week: WeekCardData }) {
                     )}
 
                     {/* Progress bar */}
-                    {week.taskCount > 0 ? (
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[10px]">
-                                <span className="text-muted-foreground">الإنجاز</span>
-                                <span className="font-semibold text-cyber-blue">
-                                    {week.completedCount}/{week.taskCount} ({percentage}%)
-                                </span>
-                            </div>
-                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                                <motion.div
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${percentage}%` }}
-                                    transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
-                                    className={cn(
-                                        "h-full rounded-full",
-                                        percentage === 100
-                                            ? "bg-cyber-neon"
-                                            : "bg-linear-to-l from-cyber-blue to-cyber-cyan",
-                                    )}
-                                />
-                            </div>
+                    <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-muted-foreground">الإنجاز</span>
+                            <span className="font-semibold text-cyber-blue">
+                                {week.completedCount}/{week.taskCount} ({percentage}%)
+                            </span>
                         </div>
-                    ) : (
-                        <p className="text-[11px] text-muted-foreground">لا توجد مهام</p>
-                    )}
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${percentage}%` }}
+                                transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
+                                className={cn(
+                                    "h-full rounded-full",
+                                    percentage === 100
+                                        ? "bg-cyber-neon"
+                                        : "bg-linear-to-l from-cyber-blue to-cyber-cyan",
+                                )}
+                            />
+                        </div>
+                    </div>
 
                     {/* Completed indicator */}
                     {percentage === 100 && week.taskCount > 0 && (
@@ -152,14 +197,27 @@ export default function WeeksPage() {
 
             if (cancelled) return;
 
-            const weekCards: WeekCardData[] = allWeeks.map((w) => {
-                const counts = taskCounts.get(w.id) ?? { total: 0, completed: 0 };
-                return {
-                    weekRow: w,
-                    taskCount: counts.total,
-                    completedCount: counts.completed,
-                };
-            });
+            // Filter: only keep weeks that have at least 1 task,
+            // a weekly challenge, or a review filled in.
+            const weekCards: WeekCardData[] = allWeeks
+                .map((w) => {
+                    const counts = taskCounts.get(w.id) ?? { total: 0, completed: 0 };
+                    return {
+                        weekRow: w,
+                        taskCount: counts.total,
+                        completedCount: counts.completed,
+                    };
+                })
+                .filter((w) => {
+                    const hasWork = w.taskCount > 0;
+                    const hasChallenge = !!w.weekRow.weekly_challenge;
+                    const hasReview = !!(
+                        w.weekRow.review_good ||
+                        w.weekRow.review_bad ||
+                        w.weekRow.review_learned
+                    );
+                    return hasWork || hasChallenge || hasReview;
+                });
 
             setWeeks(weekCards);
             setIsLoading(false);
@@ -169,12 +227,9 @@ export default function WeeksPage() {
         return () => { cancelled = true; };
     }, []);
 
+    // ── Skeleton loading state ──
     if (isLoading) {
-        return (
-            <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-6 w-6 animate-spin text-cyber-blue" />
-            </div>
-        );
+        return <WeeksGridSkeleton />;
     }
 
     return (
@@ -193,7 +248,7 @@ export default function WeeksPage() {
                     <div>
                         <h2 className="text-2xl font-bold text-foreground">الأسابيع</h2>
                         <p className="text-sm text-muted-foreground">
-                            جميع أسابيعك المخططة ({weeks.length} أسبوع)
+                            الأسابيع التي عملت عليها ({weeks.length} أسبوع)
                         </p>
                     </div>
                 </div>

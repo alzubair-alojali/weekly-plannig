@@ -54,6 +54,7 @@ export function PlannerGrid({ onEditTask, weeklyChallenge }: PlannerGridProps) {
 
     return (
         <motion.div
+            dir="rtl"
             variants={stagger}
             initial="hidden"
             animate="show"

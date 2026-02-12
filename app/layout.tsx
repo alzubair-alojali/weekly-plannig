@@ -12,6 +12,10 @@ const cairo = Cairo({
 export const metadata: Metadata = {
   title: "المخطط الأسبوعي",
   description: "مخطط أسبوعي شخصي لإدارة المهام والإنتاجية",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({

@@ -48,7 +48,7 @@ export function WeekNavigator({ onStartReview }: WeekNavigatorProps) {
                     onClick={goToNextWeek}
                     aria-label="الأسبوع القادم"
                 >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronLeft className="h-4 w-4" />
                 </CyberButton>
 
                 <CyberButton
@@ -67,7 +67,7 @@ export function WeekNavigator({ onStartReview }: WeekNavigatorProps) {
                     onClick={goToPrevWeek}
                     aria-label="الأسبوع السابق"
                 >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronRight className="h-4 w-4" />
                 </CyberButton>
 
                 {/* Review button */}

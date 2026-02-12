@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { createClient, resetAuthState } from "@/lib/supabase";
@@ -11,7 +12,6 @@ import {
     Settings,
     ChevronLeft,
     ChevronRight,
-    Zap,
     LogOut,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -67,8 +67,15 @@ export function Sidebar() {
         >
             {/* Logo / Brand */}
             <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyber-blue/10 text-cyber-blue">
-                    <Zap className="h-5 w-5" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg overflow-hidden">
+                    <Image
+                        src="/logo.png"
+                        alt="المخطط الأسبوعي"
+                        width={40}
+                        height={40}
+                        className="object-contain"
+                        priority
+                    />
                 </div>
                 <AnimatePresence mode="wait">
                     {!collapsed && (
