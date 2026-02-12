@@ -103,6 +103,7 @@ export async function updateWeekInDb(
     weekDbId: string,
     updates: {
         weekly_challenge?: string;
+        challenge_progress?: string[];
         review_good?: string;
         review_bad?: string;
         review_learned?: string;

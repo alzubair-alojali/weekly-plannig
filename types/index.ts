@@ -52,6 +52,7 @@ export interface WeekRow {
     start_date: string;
     end_date: string;
     weekly_challenge: string | null;
+    challenge_progress: string[] | null; // JSONB: array of date strings where challenge was completed
     review_good: string | null;
     review_bad: string | null;
     review_learned: string | null;
@@ -72,6 +73,7 @@ export interface WeekMeta {
     weekId: string;           // display ID like "2026-W07"
     weekDbId: string | null;  // UUID from weeks table
     weeklyChallenge: string;
+    challengeProgress: string[]; // array of date strings (e.g., "2026-02-07")
     createdAt: string;
 }
 

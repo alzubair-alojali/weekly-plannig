@@ -88,8 +88,10 @@ interface PlannerState {
 
     // Weekly Challenge
     setWeeklyChallenge: (challenge: string) => void;
+    toggleChallengeDay: (date: string) => void;
     getWeekMeta: (weekId: string) => WeekMeta | undefined;
     getWeeklyChallenge: () => string;
+    getChallengeProgress: () => string[];
     getVisitedWeeks: () => { weekId: string; challenge: string; taskCount: number; completedCount: number; hasReview: boolean }[];
 
     // Selectors
@@ -139,7 +141,12 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                 const updatedMetas = existingMeta
                     ? get().weekMetas.map((m) =>
                         m.weekId === displayWeekId
-                            ? { ...m, weekDbId, weeklyChallenge: weekRow.weekly_challenge ?? m.weeklyChallenge }
+                            ? {
+                                ...m,
+                                weekDbId,
+                                weeklyChallenge: weekRow.weekly_challenge ?? m.weeklyChallenge,
+                                challengeProgress: weekRow.challenge_progress ?? m.challengeProgress ?? [],
+                            }
                             : m,
                     )
                     : [
@@ -148,6 +155,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                             weekId: displayWeekId,
                             weekDbId,
                             weeklyChallenge: weekRow.weekly_challenge ?? "",
+                            challengeProgress: weekRow.challenge_progress ?? [],
                             createdAt: weekRow.created_at,
                         },
                     ];
@@ -239,7 +247,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                         : {
                             weekMetas: [
                                 ...s.weekMetas,
-                                { weekId: s.weekId, weekDbId: s.weekDbId, weeklyChallenge: "", createdAt: new Date().toISOString() },
+                                { weekId: s.weekId, weekDbId: s.weekDbId, weeklyChallenge: "", challengeProgress: [], createdAt: new Date().toISOString() },
                             ],
                         }),
                 }));
@@ -462,7 +470,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                 set((s) => ({
                     weekMetas: [
                         ...s.weekMetas,
-                        { weekId: s.weekId, weekDbId: s.weekDbId, weeklyChallenge: challenge, createdAt: new Date().toISOString() },
+                        { weekId: s.weekId, weekDbId: s.weekDbId, weeklyChallenge: challenge, challengeProgress: [], createdAt: new Date().toISOString() },
                     ],
                 }));
             }
@@ -473,6 +481,35 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
             }
         },
 
+        toggleChallengeDay: (date: string) => {
+            const state = get();
+            const meta = state.weekMetas.find((m) => m.weekId === state.weekId);
+            const current = meta?.challengeProgress ?? [];
+            const updated = current.includes(date)
+                ? current.filter((d) => d !== date)
+                : [...current, date];
+
+            if (meta) {
+                set((s) => ({
+                    weekMetas: s.weekMetas.map((m) =>
+                        m.weekId === s.weekId ? { ...m, challengeProgress: updated } : m,
+                    ),
+                }));
+            } else {
+                set((s) => ({
+                    weekMetas: [
+                        ...s.weekMetas,
+                        { weekId: s.weekId, weekDbId: s.weekDbId, weeklyChallenge: "", challengeProgress: updated, createdAt: new Date().toISOString() },
+                    ],
+                }));
+            }
+
+            // Persist to weeks table
+            if (state.weekDbId) {
+                updateWeekInDb(state.weekDbId, { challenge_progress: updated });
+            }
+        },
+
         getWeekMeta: (weekId) => {
             return get().weekMetas.find((m) => m.weekId === weekId);
         },
@@ -480,6 +517,11 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
         getWeeklyChallenge: () => {
             const state = get();
             return state.weekMetas.find((m) => m.weekId === state.weekId)?.weeklyChallenge ?? "";
+        },
+
+        getChallengeProgress: () => {
+            const state = get();
+            return state.weekMetas.find((m) => m.weekId === state.weekId)?.challengeProgress ?? [];
         },
 
         getVisitedWeeks: () => {

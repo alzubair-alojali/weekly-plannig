@@ -9,6 +9,11 @@ import { TaskEditDialog } from "@/components/planner/task-edit-dialog";
 import { WeeklyReviewDialog } from "@/components/planner/weekly-review-dialog";
 import { BrainDumpPanel } from "@/components/planner/brain-dump";
 import { WeeklyChallengeInput } from "@/components/planner/weekly-challenge";
+import {
+    PlannerGridSkeleton,
+    BrainDumpSkeleton,
+    ChallengeSkeleton,
+} from "@/components/planner/planner-skeleton";
 import type { Task } from "@/types";
 
 export default function PlannerPage() {
@@ -57,26 +62,25 @@ export default function PlannerPage() {
         setDialogOpen(true);
     };
 
+    const isLoading = !authReady || isSyncing || !hasFetched;
+
     return (
         <div className="space-y-5">
             {/* Week Navigation Header */}
             <WeekNavigator onStartReview={() => setReviewOpen(true)} />
 
-            {/* Sync indicator */}
-            {(!authReady || isSyncing || !hasFetched) && (
-                <div className="text-center text-xs text-cyber-cyan animate-pulse">
-                    {!authReady ? "جارِ التحقق من الجلسة..." : "جارِ تحميل المهام..."}
-                </div>
-            )}
-
             {/* Weekly Challenge */}
-            <WeeklyChallengeInput />
+            {isLoading ? <ChallengeSkeleton /> : <WeeklyChallengeInput />}
 
             {/* Brain Dump (draggable items) */}
-            <BrainDumpPanel />
+            {isLoading ? <BrainDumpSkeleton /> : <BrainDumpPanel />}
 
             {/* Responsive Grid Board */}
-            <PlannerGrid onEditTask={handleEditTask} weeklyChallenge={weeklyChallenge || undefined} />
+            {isLoading ? (
+                <PlannerGridSkeleton />
+            ) : (
+                <PlannerGrid onEditTask={handleEditTask} weeklyChallenge={weeklyChallenge || undefined} />
+            )}
 
             {/* Task Edit Dialog */}
             <TaskEditDialog

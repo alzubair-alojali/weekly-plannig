@@ -167,6 +167,8 @@ interface DayColumnProps {
     fullHeight?: boolean;
     onEditTask?: (task: Task) => void;
     weeklyChallenge?: string;
+    challengeChecked?: boolean;
+    onToggleChallenge?: (date: string) => void;
 }
 
 export function DayColumn({
@@ -176,6 +178,8 @@ export function DayColumn({
     fullHeight = false,
     onEditTask,
     weeklyChallenge,
+    challengeChecked = false,
+    onToggleChallenge,
 }: DayColumnProps) {
     const today = isDateToday(date);
     const dateLabel = formatDateAr(date);
@@ -256,7 +260,7 @@ export function DayColumn({
                 </div>
             </div>
 
-            {/* Weekly Challenge Badge */}
+            {/* Weekly Challenge Badge with Check-in */}
             <AnimatePresence>
                 {weeklyChallenge && (
                     <motion.div
@@ -266,8 +270,30 @@ export function DayColumn({
                         className="border-b border-slate-800/40"
                     >
                         <div className="flex items-center gap-2 px-3 py-2 bg-linear-to-l from-amber-500/5 to-transparent">
-                            <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                            <span className="text-[11px] font-semibold text-amber-400/90 truncate">
+                            {/* Check-in checkbox */}
+                            <button
+                                onClick={() => onToggleChallenge?.(date)}
+                                className={cn(
+                                    "flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded border transition-all cursor-pointer",
+                                    challengeChecked
+                                        ? "border-amber-400 bg-amber-400/20 text-amber-400"
+                                        : "border-slate-600 hover:border-amber-400/50",
+                                )}
+                            >
+                                {challengeChecked && (
+                                    <motion.div
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        transition={{ type: "spring", duration: 0.3 }}
+                                    >
+                                        <Trophy className="h-2.5 w-2.5" />
+                                    </motion.div>
+                                )}
+                            </button>
+                            <span className={cn(
+                                "text-[11px] font-semibold truncate flex-1",
+                                challengeChecked ? "text-amber-400 line-through" : "text-amber-400/90",
+                            )}>
                                 {weeklyChallenge}
                             </span>
                         </div>

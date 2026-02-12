@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
-import { usePlannerStore } from "@/lib/planner-store";
+import { useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -12,8 +11,13 @@ import {
     Trophy,
     ClipboardCheck,
     ArrowLeft,
+    Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { fetchAllWeeks } from "@/lib/supabase-weeks";
+import { fetchTaskCountsByWeek } from "@/lib/supabase-tasks";
+import { waitForAuth } from "@/lib/supabase";
+import type { WeekRow } from "@/types";
 
 const stagger = {
     hidden: { opacity: 0 },
@@ -33,11 +37,9 @@ const fadeUp = {
 };
 
 interface WeekCardData {
-    weekId: string;
-    challenge: string;
+    weekRow: WeekRow;
     taskCount: number;
     completedCount: number;
-    hasReview: boolean;
 }
 
 function WeekCard({ week }: { week: WeekCardData }) {
@@ -46,15 +48,13 @@ function WeekCard({ week }: { week: WeekCardData }) {
             ? Math.round((week.completedCount / week.taskCount) * 100)
             : 0;
 
-    // Parse weekId to display label (e.g., "2026-W07" → "الأسبوع 07 — 2026")
-    const match = week.weekId.match(/(\d{4})-W(\d{2})/);
-    const label = match
-        ? `الأسبوع ${match[2]} — ${match[1]}`
-        : week.weekId;
+    const label = `الأسبوع ${week.weekRow.week_number} — ${week.weekRow.year}`;
+    const dateRange = `${week.weekRow.start_date} → ${week.weekRow.end_date}`;
+    const hasReview = !!(week.weekRow.review_good || week.weekRow.review_bad || week.weekRow.review_learned);
 
     return (
         <motion.div variants={fadeUp}>
-            <Link href={`/planner?week=${week.weekId}`}>
+            <Link href="/planner">
                 <GlassCard interactive className="space-y-3 cursor-pointer">
                     {/* Header row */}
                     <div className="flex items-start justify-between">
@@ -65,13 +65,13 @@ function WeekCard({ week }: { week: WeekCardData }) {
                             <div>
                                 <p className="text-sm font-bold text-foreground">{label}</p>
                                 <p className="text-[11px] text-muted-foreground">
-                                    {week.taskCount} مهام
+                                    {dateRange}
                                 </p>
                             </div>
                         </div>
 
                         {/* Review badge */}
-                        {week.hasReview && (
+                        {hasReview && (
                             <div className="flex items-center gap-1 rounded-full bg-cyber-neon/10 px-2 py-0.5">
                                 <ClipboardCheck className="h-3 w-3 text-cyber-neon" />
                                 <span className="text-[10px] font-semibold text-cyber-neon">
@@ -82,17 +82,17 @@ function WeekCard({ week }: { week: WeekCardData }) {
                     </div>
 
                     {/* Challenge */}
-                    {week.challenge && (
+                    {week.weekRow.weekly_challenge && (
                         <div className="flex items-center gap-2 rounded-lg bg-amber-500/5 border border-amber-500/10 px-3 py-1.5">
                             <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
                             <span className="text-[11px] font-medium text-amber-400/80 truncate">
-                                {week.challenge}
+                                {week.weekRow.weekly_challenge}
                             </span>
                         </div>
                     )}
 
                     {/* Progress bar */}
-                    {week.taskCount > 0 && (
+                    {week.taskCount > 0 ? (
                         <div className="space-y-1">
                             <div className="flex items-center justify-between text-[10px]">
                                 <span className="text-muted-foreground">الإنجاز</span>
@@ -114,6 +114,8 @@ function WeekCard({ week }: { week: WeekCardData }) {
                                 />
                             </div>
                         </div>
+                    ) : (
+                        <p className="text-[11px] text-muted-foreground">لا توجد مهام</p>
                     )}
 
                     {/* Completed indicator */}
@@ -130,29 +132,50 @@ function WeekCard({ week }: { week: WeekCardData }) {
 }
 
 export default function WeeksPage() {
-    const tasks = usePlannerStore((s) => s.tasks);
-    const reviews = usePlannerStore((s) => s.reviews);
-    const weekMetas = usePlannerStore((s) => s.weekMetas);
+    const [isLoading, setIsLoading] = useState(true);
+    const [weeks, setWeeks] = useState<WeekCardData[]>([]);
 
-    const visitedWeeks = useMemo(() => {
-        const weekIds = new Set<string>();
-        tasks.forEach((t) => { if (t.weekId) weekIds.add(t.weekId); });
-        reviews.forEach((r) => weekIds.add(r.weekId));
-        weekMetas.forEach((m) => weekIds.add(m.weekId));
+    useEffect(() => {
+        let cancelled = false;
 
-        return Array.from(weekIds)
-            .sort((a, b) => b.localeCompare(a))
-            .map((wid) => {
-                const weekTasks = tasks.filter((t) => t.weekId === wid);
+        async function load() {
+            const userId = await waitForAuth();
+            if (!userId || cancelled) {
+                setIsLoading(false);
+                return;
+            }
+
+            const [allWeeks, taskCounts] = await Promise.all([
+                fetchAllWeeks(),
+                fetchTaskCountsByWeek(),
+            ]);
+
+            if (cancelled) return;
+
+            const weekCards: WeekCardData[] = allWeeks.map((w) => {
+                const counts = taskCounts.get(w.id) ?? { total: 0, completed: 0 };
                 return {
-                    weekId: wid,
-                    challenge: weekMetas.find((m) => m.weekId === wid)?.weeklyChallenge ?? "",
-                    taskCount: weekTasks.length,
-                    completedCount: weekTasks.filter((t) => t.isCompleted).length,
-                    hasReview: reviews.some((r) => r.weekId === wid),
+                    weekRow: w,
+                    taskCount: counts.total,
+                    completedCount: counts.completed,
                 };
             });
-    }, [tasks, reviews, weekMetas]);
+
+            setWeeks(weekCards);
+            setIsLoading(false);
+        }
+
+        load();
+        return () => { cancelled = true; };
+    }, []);
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-6 w-6 animate-spin text-cyber-blue" />
+            </div>
+        );
+    }
 
     return (
         <motion.div
@@ -170,14 +193,14 @@ export default function WeeksPage() {
                     <div>
                         <h2 className="text-2xl font-bold text-foreground">الأسابيع</h2>
                         <p className="text-sm text-muted-foreground">
-                            جميع أسابيعك المخططة
+                            جميع أسابيعك المخططة ({weeks.length} أسبوع)
                         </p>
                     </div>
                 </div>
             </motion.div>
 
             {/* Weeks Grid */}
-            {visitedWeeks.length === 0 ? (
+            {weeks.length === 0 ? (
                 <motion.div variants={fadeUp}>
                     <GlassCard className="flex flex-col items-center gap-4 py-14">
                         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/50">
@@ -202,8 +225,8 @@ export default function WeeksPage() {
                 </motion.div>
             ) : (
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                    {visitedWeeks.map((week) => (
-                        <WeekCard key={week.weekId} week={week} />
+                    {weeks.map((week) => (
+                        <WeekCard key={week.weekRow.id} week={week} />
                     ))}
                 </div>
             )}

@@ -207,3 +207,35 @@ export async function deleteTaskFromDb(taskId: string): Promise<boolean> {
     console.log("[Supabase] ✅ Deleted");
     return true;
 }
+
+/**
+ * Fetch task counts (total + completed) grouped by week_id.
+ * Returns a map: weekDbId → { total, completed }
+ */
+export async function fetchTaskCountsByWeek(): Promise<Map<string, { total: number; completed: number }>> {
+    const userId = await getCurrentUserId();
+    if (!userId) return new Map();
+
+    const supabase = createClient();
+    const { data, error } = await supabase
+        .from("tasks")
+        .select("week_id, status")
+        .eq("user_id", userId)
+        .eq("is_brain_dump", false)
+        .not("week_id", "is", null);
+
+    if (error) {
+        console.error("[Supabase] ❌ Fetch task counts:", error.message);
+        return new Map();
+    }
+
+    const counts = new Map<string, { total: number; completed: number }>();
+    for (const row of data ?? []) {
+        const wid = row.week_id as string;
+        const existing = counts.get(wid) ?? { total: 0, completed: 0 };
+        existing.total++;
+        if (row.status === "completed") existing.completed++;
+        counts.set(wid, existing);
+    }
+    return counts;
+}

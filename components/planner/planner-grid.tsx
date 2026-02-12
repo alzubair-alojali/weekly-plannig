@@ -33,6 +33,14 @@ const fadeScale = {
 export function PlannerGrid({ onEditTask, weeklyChallenge }: PlannerGridProps) {
     const currentDate = usePlannerStore((s) => s.currentDate);
     const tasks = usePlannerStore((s) => s.tasks);
+    const weekId = usePlannerStore((s) => s.weekId);
+    const weekMetas = usePlannerStore((s) => s.weekMetas);
+    const toggleChallengeDay = usePlannerStore((s) => s.toggleChallengeDay);
+
+    const challengeProgress = useMemo(
+        () => weekMetas.find((m) => m.weekId === weekId)?.challengeProgress ?? [],
+        [weekMetas, weekId],
+    );
 
     const columns = useMemo(() => {
         const weekDays = getWeekDays(currentDate);
@@ -60,6 +68,8 @@ export function PlannerGrid({ onEditTask, weeklyChallenge }: PlannerGridProps) {
                         fullHeight
                         onEditTask={onEditTask}
                         weeklyChallenge={weeklyChallenge}
+                        challengeChecked={challengeProgress.includes(col.date)}
+                        onToggleChallenge={toggleChallengeDay}
                     />
                 </motion.div>
             ))}

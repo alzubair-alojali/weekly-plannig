@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { usePlannerStore } from "@/lib/planner-store";
-import { formatWeekRange } from "@/lib/week-utils";
+import { formatWeekRange, getWeekNumber } from "@/lib/week-utils";
 import { CyberButton } from "@/components/ui/cyber-button";
 import {
     ChevronRight,
@@ -25,12 +25,18 @@ export function WeekNavigator({ onStartReview }: WeekNavigatorProps) {
     const existingReview = useMemo(() => reviews.find((r) => r.weekId === weekId), [reviews, weekId]);
 
     const weekRange = formatWeekRange(currentDate);
+    const weekNumber = useMemo(() => getWeekNumber(currentDate), [currentDate]);
 
     return (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             {/* Week label */}
             <div className="space-y-1">
-                <h2 className="text-2xl font-bold text-foreground">المخطط الأسبوعي</h2>
+                <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-bold text-foreground">المخطط الأسبوعي</h2>
+                    <span className="rounded-full bg-cyber-blue/10 border border-cyber-blue/20 px-2.5 py-0.5 text-xs font-semibold text-cyber-blue">
+                        الأسبوع {weekNumber} / 52
+                    </span>
+                </div>
                 <p className="text-sm text-muted-foreground">{weekRange}</p>
             </div>
 

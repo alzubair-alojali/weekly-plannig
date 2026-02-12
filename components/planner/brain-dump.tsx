@@ -14,21 +14,36 @@ import {
     Plus,
     Trash2,
     CalendarPlus,
+    Clock,
 } from "lucide-react";
 import { dayLabels } from "@/lib/week-utils";
-import type { Task, DayOfWeek } from "@/types";
+import type { Task, DayOfWeek, Priority } from "@/types";
 
-// ── Inline Add for Brain Dump ──
+const priorities: Priority[] = ["high", "medium", "low"];
+
+// ── Inline Add for Brain Dump (matches DayColumn AddTaskInline) ──
 function BrainDumpInput() {
     const addTask = usePlannerStore((s) => s.addTask);
     const [isAdding, setIsAdding] = useState(false);
+    const [priority, setPriority] = useState<Priority>("medium");
+    const [isMeeting, setIsMeeting] = useState(false);
+    const [startTime, setStartTime] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
 
     const handleSubmit = () => {
         const value = inputRef.current?.value.trim();
         if (value) {
-            addTask({ title: value, date: null, isBrainDump: true });
+            addTask({
+                title: value,
+                date: null,
+                isBrainDump: true,
+                priority: isMeeting ? "meeting" : priority,
+                startTime: isMeeting && startTime ? startTime + ":00" : null,
+            });
             if (inputRef.current) inputRef.current.value = "";
+            setPriority("medium");
+            setIsMeeting(false);
+            setStartTime("");
         }
         setIsAdding(false);
     };
@@ -48,7 +63,7 @@ function BrainDumpInput() {
     }
 
     return (
-        <div className="rounded-lg border border-cyber-cyan/30 bg-slate-900/80 p-2">
+        <div className="space-y-2 rounded-lg border border-cyber-cyan/30 bg-slate-900/80 p-2.5">
             <input
                 ref={inputRef}
                 autoFocus
@@ -61,8 +76,88 @@ function BrainDumpInput() {
                     if (e.key === "Enter") handleSubmit();
                     if (e.key === "Escape") setIsAdding(false);
                 }}
-                onBlur={handleSubmit}
             />
+
+            {/* Meeting toggle */}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+                <div
+                    className={cn(
+                        "flex h-4 w-4 items-center justify-center rounded border transition-all",
+                        isMeeting
+                            ? "border-priority-meeting bg-priority-meeting/20"
+                            : "border-slate-700 hover:border-slate-600",
+                    )}
+                    onClick={() => setIsMeeting(!isMeeting)}
+                >
+                    {isMeeting && <Clock className="h-2.5 w-2.5 text-priority-meeting" />}
+                </div>
+                <span className="text-[11px] text-muted-foreground">اجتماع / موعد</span>
+            </label>
+
+            {/* Time picker (shown when meeting is checked) */}
+            <AnimatePresence>
+                {isMeeting && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                    >
+                        <input
+                            type="time"
+                            value={startTime}
+                            onChange={(e) => setStartTime(e.target.value)}
+                            className={cn(
+                                "w-full rounded-md border border-slate-800 bg-slate-950/80 px-2.5 py-1.5",
+                                "text-xs text-foreground outline-none",
+                                "focus:border-priority-meeting/40",
+                                "[color-scheme:dark]",
+                            )}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Priority selector (hidden when meeting) */}
+            {!isMeeting && (
+                <div className="flex items-center gap-1.5">
+                    {priorities.map((p) => (
+                        <button
+                            key={p}
+                            type="button"
+                            onClick={() => setPriority(p)}
+                            className={cn(
+                                "rounded-md border px-2 py-0.5 text-[10px] transition-all cursor-pointer",
+                                priority === p
+                                    ? "border-cyber-cyan/30 bg-cyber-cyan/10 scale-105"
+                                    : "border-slate-800 bg-slate-900/40 hover:border-slate-700",
+                            )}
+                        >
+                            <PriorityBadge
+                                priority={p}
+                                className="border-0 bg-transparent px-0 py-0"
+                            />
+                        </button>
+                    ))}
+                    <div className="flex-1" />
+                    <button
+                        onClick={handleSubmit}
+                        className="rounded-md bg-cyber-cyan/15 px-2.5 py-0.5 text-[10px] font-semibold text-cyber-cyan transition-colors hover:bg-cyber-cyan/25 cursor-pointer"
+                    >
+                        إضافة
+                    </button>
+                </div>
+            )}
+
+            {/* Submit for meeting mode */}
+            {isMeeting && (
+                <button
+                    onClick={handleSubmit}
+                    className="w-full rounded-md bg-priority-meeting/15 px-2.5 py-1 text-[10px] font-semibold text-priority-meeting transition-colors hover:bg-priority-meeting/25 cursor-pointer"
+                >
+                    إضافة اجتماع
+                </button>
+            )}
         </div>
     );
 }
