@@ -116,7 +116,7 @@ export default function SettingsPage() {
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    className="fixed top-4 left-1/2 z-50 -translate-x-1/2"
+                    className="fixed top-4 start-1/2 z-50 -translate-x-1/2"
                 >
                     <div className="flex items-center gap-2 rounded-lg border border-cyber-neon/20 bg-cyber-neon/10 px-4 py-2.5 text-sm font-medium text-cyber-neon shadow-lg backdrop-blur-sm">
                         <CheckCircle2 className="h-4 w-4" />

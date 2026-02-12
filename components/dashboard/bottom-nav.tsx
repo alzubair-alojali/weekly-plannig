@@ -64,7 +64,7 @@ export function BottomNav() {
                                 {isActive && (
                                     <motion.div
                                         layoutId="bottom-nav-indicator"
-                                        className="absolute -top-px left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-cyber-blue"
+                                        className="absolute -top-px start-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-cyber-blue"
                                         transition={{ type: "spring", duration: 0.4, bounce: 0.15 }}
                                     />
                                 )}

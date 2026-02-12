@@ -185,7 +185,8 @@ export default function WeeksPage() {
 
         async function load() {
             const userId = await waitForAuth();
-            if (!userId || cancelled) {
+            if (cancelled) return;
+            if (!userId) {
                 setIsLoading(false);
                 return;
             }

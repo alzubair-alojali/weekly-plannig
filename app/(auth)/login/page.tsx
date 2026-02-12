@@ -8,7 +8,6 @@ import { CalendarDays, Loader2 } from "lucide-react";
 export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [isSignUp, setIsSignUp] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [message, setMessage] = useState<string | null>(null);
@@ -21,32 +20,19 @@ export default function LoginPage() {
 
         const supabase = createClient();
 
-        if (isSignUp) {
-            const { error: signUpError } = await supabase.auth.signUp({
-                email,
-                password,
-            });
-            if (signUpError) {
-                console.error("[Auth] ❌ Sign up error:", signUpError.message);
-                setError(signUpError.message);
-            } else {
-                setMessage("تم إنشاء الحساب! تحقق من بريدك الإلكتروني للتأكيد.");
-            }
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
+        if (signInError) {
+            console.error("[Auth] ❌ Sign in error:", signInError.message);
+            setError(signInError.message);
         } else {
-            const { error: signInError } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
-            if (signInError) {
-                console.error("[Auth] ❌ Sign in error:", signInError.message);
-                setError(signInError.message);
-            } else {
-                // CRITICAL: Use full page navigation (not router.push)
-                // so the middleware runs and sets the auth cookies properly.
-                // router.push does a soft SPA navigation that leaves cookies stale.
-                window.location.href = "/planner";
-                return; // Don't setLoading(false) — we're navigating away
-            }
+            // CRITICAL: Use full page navigation (not router.push)
+            // so the middleware runs and sets the auth cookies properly.
+            // router.push does a soft SPA navigation that leaves cookies stale.
+            window.location.href = "/planner";
+            return; // Don't setLoading(false) — we're navigating away
         }
 
         setLoading(false);
@@ -68,7 +54,7 @@ export default function LoginPage() {
                     </div>
                     <h1 className="text-xl font-bold text-foreground">المخطط الأسبوعي</h1>
                     <p className="mt-1 text-xs text-muted-foreground">
-                        {isSignUp ? "إنشاء حساب جديد" : "تسجيل الدخول"}
+                        تسجيل الدخول
                     </p>
                 </div>
 
@@ -139,22 +125,9 @@ export default function LoginPage() {
                         )}
                     >
                         {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                        {isSignUp ? "إنشاء حساب" : "تسجيل الدخول"}
+                        تسجيل الدخول
                     </button>
                 </form>
-
-                <div className="mt-6 text-center">
-                    <button
-                        onClick={() => {
-                            setIsSignUp(!isSignUp);
-                            setError(null);
-                            setMessage(null);
-                        }}
-                        className="text-xs text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
-                    >
-                        {isSignUp ? "لديك حساب؟ تسجيل الدخول" : "حساب جديد؟ إنشاء حساب"}
-                    </button>
-                </div>
             </div>
         </div>
     );

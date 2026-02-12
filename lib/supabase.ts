@@ -31,24 +31,39 @@ export function waitForAuth(): Promise<string | null> {
     const supabase = createClient();
 
     authReadyPromise = new Promise<string | null>((resolve) => {
+        let resolved = false;
+
+        const settle = (uid: string | null) => {
+            if (resolved) return;
+            resolved = true;
+            resolve(uid);
+        };
+
         // onAuthStateChange fires INITIAL_SESSION once hydrated
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             (event: AuthChangeEvent, session: Session | null) => {
-                if (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-                    resolve(session?.user?.id ?? null);
-                    // Don't unsubscribe — keep listening for sign-out
-                }
-                if (event === "SIGNED_OUT") {
-                    // Reset so next call re-subscribes
+                if (event === "INITIAL_SESSION") {
+                    if (session?.user?.id) {
+                        settle(session.user.id);
+                    } else {
+                        // INITIAL_SESSION fired with null — cookies may not
+                        // have been processed yet.  Fall back to getUser().
+                        supabase.auth.getUser().then(({ data }: { data: { user: { id: string } | null } }) => {
+                            settle(data?.user?.id ?? null);
+                        });
+                    }
+                } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+                    settle(session?.user?.id ?? null);
+                } else if (event === "SIGNED_OUT") {
                     authReadyPromise = null;
-                    resolve(null);
+                    settle(null);
                     subscription.unsubscribe();
                 }
             },
         );
 
-        // Safety fallback: if no event fires within 5s, resolve with null
-        setTimeout(() => resolve(null), 5000);
+        // Safety fallback: if nothing resolves within 5s, resolve with null
+        setTimeout(() => settle(null), 5000);
     });
 
     return authReadyPromise;
