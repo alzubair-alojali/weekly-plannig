@@ -15,7 +15,7 @@ import {
     ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { WeeklyReview } from "@/types";
 
 const stagger = {
@@ -120,11 +120,14 @@ function ReviewCard({ review }: { review: WeeklyReview }) {
 }
 
 export default function ArchivePage() {
-    const reviews = usePlannerStore((s) => s.getAllReviews());
+    const reviews = usePlannerStore((s) => s.reviews);
 
     // Sort newest first
-    const sortedReviews = [...reviews].sort(
-        (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime(),
+    const sortedReviews = useMemo(
+        () => [...reviews].sort(
+            (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime(),
+        ),
+        [reviews],
     );
 
     return (

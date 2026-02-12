@@ -4,24 +4,40 @@ import { cn } from "@/lib/utils";
 import { usePlannerStore } from "@/lib/planner-store";
 import { isDateToday, formatDateAr } from "@/lib/week-utils";
 import { TaskCard } from "./task-card";
-import { Plus } from "lucide-react";
-import { useState, useRef } from "react";
-import type { Task } from "@/types";
+import { Plus, Trophy, Clock } from "lucide-react";
+import { useState, useRef, useCallback } from "react";
+import type { Task, Priority } from "@/types";
+import { PriorityBadge } from "@/components/ui/priority-badge";
+import { motion, AnimatePresence } from "framer-motion";
 
+// ── Inline Add with Priority + Meeting Toggle ──
 interface AddTaskInlineProps {
     date: string;
 }
 
+const priorities: Priority[] = ["high", "medium", "low"];
+
 function AddTaskInline({ date }: AddTaskInlineProps) {
     const addTask = usePlannerStore((s) => s.addTask);
     const [isAdding, setIsAdding] = useState(false);
+    const [priority, setPriority] = useState<Priority>("medium");
+    const [isMeeting, setIsMeeting] = useState(false);
+    const [startTime, setStartTime] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
 
     const handleSubmit = () => {
         const value = inputRef.current?.value.trim();
         if (value) {
-            addTask({ title: value, date });
+            addTask({
+                title: value,
+                date,
+                priority: isMeeting ? "meeting" : priority,
+                startTime: isMeeting && startTime ? startTime + ":00" : null,
+            });
             if (inputRef.current) inputRef.current.value = "";
+            setPriority("medium");
+            setIsMeeting(false);
+            setStartTime("");
         }
         setIsAdding(false);
     };
@@ -44,7 +60,7 @@ function AddTaskInline({ date }: AddTaskInlineProps) {
     }
 
     return (
-        <div className="rounded-lg border border-cyber-blue/30 bg-slate-900/80 p-2">
+        <div className="space-y-2 rounded-lg border border-cyber-blue/30 bg-slate-900/80 p-2.5">
             <input
                 ref={inputRef}
                 autoFocus
@@ -57,35 +73,153 @@ function AddTaskInline({ date }: AddTaskInlineProps) {
                     if (e.key === "Enter") handleSubmit();
                     if (e.key === "Escape") setIsAdding(false);
                 }}
-                onBlur={handleSubmit}
             />
+
+            {/* Meeting toggle */}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+                <div
+                    className={cn(
+                        "flex h-4 w-4 items-center justify-center rounded border transition-all",
+                        isMeeting
+                            ? "border-priority-meeting bg-priority-meeting/20"
+                            : "border-slate-700 hover:border-slate-600",
+                    )}
+                    onClick={() => setIsMeeting(!isMeeting)}
+                >
+                    {isMeeting && <Clock className="h-2.5 w-2.5 text-priority-meeting" />}
+                </div>
+                <span className="text-[11px] text-muted-foreground">اجتماع / موعد</span>
+            </label>
+
+            {/* Time picker (shown when meeting is checked) */}
+            <AnimatePresence>
+                {isMeeting && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                    >
+                        <input
+                            type="time"
+                            value={startTime}
+                            onChange={(e) => setStartTime(e.target.value)}
+                            className={cn(
+                                "w-full rounded-md border border-slate-800 bg-slate-950/80 px-2.5 py-1.5",
+                                "text-xs text-foreground outline-none",
+                                "focus:border-priority-meeting/40",
+                                "[color-scheme:dark]",
+                            )}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Priority selector (hidden when meeting) */}
+            {!isMeeting && (
+                <div className="flex items-center gap-1.5">
+                    {priorities.map((p) => (
+                        <button
+                            key={p}
+                            type="button"
+                            onClick={() => setPriority(p)}
+                            className={cn(
+                                "rounded-md border px-2 py-0.5 text-[10px] transition-all cursor-pointer",
+                                priority === p
+                                    ? "border-cyber-blue/30 bg-cyber-blue/10 scale-105"
+                                    : "border-slate-800 bg-slate-900/40 hover:border-slate-700",
+                            )}
+                        >
+                            <PriorityBadge
+                                priority={p}
+                                className="border-0 bg-transparent px-0 py-0"
+                            />
+                        </button>
+                    ))}
+                    <div className="flex-1" />
+                    <button
+                        onClick={handleSubmit}
+                        className="rounded-md bg-cyber-blue/15 px-2.5 py-0.5 text-[10px] font-semibold text-cyber-blue transition-colors hover:bg-cyber-blue/25 cursor-pointer"
+                    >
+                        إضافة
+                    </button>
+                </div>
+            )}
+
+            {/* Submit for meeting mode */}
+            {isMeeting && (
+                <button
+                    onClick={handleSubmit}
+                    className="w-full rounded-md bg-priority-meeting/15 px-2.5 py-1 text-[10px] font-semibold text-priority-meeting transition-colors hover:bg-priority-meeting/25 cursor-pointer"
+                >
+                    إضافة اجتماع
+                </button>
+            )}
         </div>
     );
 }
 
+// ── Day Column ──
 interface DayColumnProps {
     label: string;
     date: string;
     tasks: Task[];
-    /** Used in mobile tabs — stretch to fill */
     fullHeight?: boolean;
-    /** Called when user wants to edit a task */
     onEditTask?: (task: Task) => void;
+    weeklyChallenge?: string;
 }
 
-export function DayColumn({ label, date, tasks, fullHeight = false, onEditTask }: DayColumnProps) {
+export function DayColumn({
+    label,
+    date,
+    tasks,
+    fullHeight = false,
+    onEditTask,
+    weeklyChallenge,
+}: DayColumnProps) {
     const today = isDateToday(date);
     const dateLabel = formatDateAr(date);
+    const moveTask = usePlannerStore((s) => s.moveTask);
+    const [isDragOver, setIsDragOver] = useState(false);
+
+    // ── DnD: Drop Target ──
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setIsDragOver(true);
+    }, []);
+
+    const handleDragLeave = useCallback(() => {
+        setIsDragOver(false);
+    }, []);
+
+    const handleDrop = useCallback(
+        (e: React.DragEvent) => {
+            e.preventDefault();
+            setIsDragOver(false);
+            const taskId = e.dataTransfer.getData("text/plain");
+            if (!taskId) return;
+
+            moveTask({
+                taskId,
+                fromDate: e.dataTransfer.getData("application/from-date") || null,
+                toDate: date,
+                newIndex: tasks.length,
+            });
+        },
+        [date, moveTask, tasks.length],
+    );
 
     return (
         <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
             className={cn(
-                "flex flex-col rounded-xl border bg-slate-900/30",
+                "flex flex-col rounded-xl border bg-slate-900/30 transition-colors duration-200",
                 today ? "border-cyber-blue/30" : "border-slate-800/60",
-                // Desktop: fixed width for horizontal scroll
-                !fullHeight && "w-65 shrink-0",
-                // Mobile tabs: fill available height
-                fullHeight && "min-h-[60vh]",
+                isDragOver && "border-cyber-cyan/50 bg-cyber-cyan/5 shadow-[0_0_20px_rgba(6,182,212,0.08)]",
+                fullHeight && "min-h-[30vh]",
             )}
         >
             {/* Column Header */}
@@ -112,13 +246,34 @@ export function DayColumn({ label, date, tasks, fullHeight = false, onEditTask }
                         </span>
                     )}
                 </div>
-                <span className="text-[11px] text-muted-foreground">{dateLabel}</span>
-                {tasks.length > 0 && (
-                    <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground ms-1">
-                        {tasks.length}
-                    </span>
-                )}
+                <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-muted-foreground">{dateLabel}</span>
+                    {tasks.length > 0 && (
+                        <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                            {tasks.length}
+                        </span>
+                    )}
+                </div>
             </div>
+
+            {/* Weekly Challenge Badge */}
+            <AnimatePresence>
+                {weeklyChallenge && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="border-b border-slate-800/40"
+                    >
+                        <div className="flex items-center gap-2 px-3 py-2 bg-linear-to-l from-amber-500/5 to-transparent">
+                            <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                            <span className="text-[11px] font-semibold text-amber-400/90 truncate">
+                                {weeklyChallenge}
+                            </span>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Task List */}
             <div className="flex-1 space-y-2 p-2">
@@ -129,7 +284,9 @@ export function DayColumn({ label, date, tasks, fullHeight = false, onEditTask }
                 {/* Empty state */}
                 {tasks.length === 0 && (
                     <div className="py-6 text-center">
-                        <p className="text-xs text-slate-600">لا توجد مهام</p>
+                        <p className="text-xs text-slate-600">
+                            {isDragOver ? "أفلت هنا" : "لا توجد مهام"}
+                        </p>
                     </div>
                 )}
             </div>

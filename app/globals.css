@@ -65,6 +65,7 @@
   --color-priority-high: #ef4444;
   --color-priority-medium: #f97316;
   --color-priority-low: #3b82f6;
+  --color-priority-meeting: #a855f7;
 }
 
 /* ── Dark-only theme (no light mode) ── */
@@ -218,4 +219,9 @@ body::after {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #334155;
+}
+
+/* Safe area for mobile bottom nav */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }

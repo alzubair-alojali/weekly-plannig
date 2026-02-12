@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { usePlannerStore } from "@/lib/planner-store";
 import {
@@ -41,7 +41,8 @@ function ReviewFormContent({
 }) {
     const weekId = usePlannerStore((s) => s.weekId);
     const saveReview = usePlannerStore((s) => s.saveReview);
-    const existingReview = usePlannerStore((s) => s.getReviewForWeek(weekId));
+    const reviews = usePlannerStore((s) => s.reviews);
+    const existingReview = useMemo(() => reviews.find((r) => r.weekId === weekId), [reviews, weekId]);
     const tasks = usePlannerStore((s) => s.tasks);
 
     const [good, setGood] = useState(existingReview?.good ?? "");

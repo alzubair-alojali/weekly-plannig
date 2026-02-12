@@ -2,7 +2,8 @@
 // Data Models — Weekly Personal Planner
 // ═══════════════════════════════════════════════════════
 
-export type Priority = "high" | "medium" | "low";
+export type Priority = "high" | "medium" | "low" | "meeting";
+export type TaskStatus = "pending" | "completed";
 
 export interface Task {
     id: string;
@@ -11,15 +12,50 @@ export interface Task {
     isCompleted: boolean;
     priority: Priority;
 
+    // Meeting / Appointment
+    startTime?: string | null; // HH:mm:ss or HH:mm (e.g., "14:30:00")
+
     // Scheduling Logic
     isBrainDump: boolean; // True if in the inbox/sidebar
-    weekId: string | null; // Null if not assigned to a specific week
+    weekId: string | null; // UUID of the week record (FK to weeks.id)
     date: string | null; // ISO Date string (e.g., "2025-10-27")
 
     // Positioning
     order: number; // Float value for precise DnD positioning
 
     createdAt: string;
+    userId?: string; // Supabase user id (not used locally)
+}
+
+/** Row shape returned from Supabase `tasks` table */
+export interface TaskRow {
+    id: string;
+    user_id: string;
+    week_id: string | null;
+    title: string;
+    description: string | null;
+    task_date: string | null;
+    is_brain_dump: boolean;
+    priority: string;           // task_priority enum
+    status: string;             // task_status enum ('pending' | 'completed')
+    position: number;           // float8 (was "order" in old code)
+    created_at: string;
+    start_time: string | null;
+}
+
+/** Row shape for the `weeks` table */
+export interface WeekRow {
+    id: string;
+    user_id: string;
+    week_number: number;
+    year: number;
+    start_date: string;
+    end_date: string;
+    weekly_challenge: string | null;
+    review_good: string | null;
+    review_bad: string | null;
+    review_learned: string | null;
+    created_at: string;
 }
 
 export interface WeeklyReview {
@@ -29,6 +65,14 @@ export interface WeeklyReview {
     bad: string;
     learned: string;
     completedAt: string;
+}
+
+/** Stores metadata about a week (challenge, creation time, etc.) */
+export interface WeekMeta {
+    weekId: string;           // display ID like "2026-W07"
+    weekDbId: string | null;  // UUID from weeks table
+    weeklyChallenge: string;
+    createdAt: string;
 }
 
 // ── UI Helper Types ──

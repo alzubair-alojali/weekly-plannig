@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { createClient, resetAuthState } from "@/lib/supabase";
 import {
     LayoutDashboard,
     CalendarDays,
@@ -11,6 +12,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Zap,
+    LogOut,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSidebarState } from "./sidebar-context";
@@ -28,8 +30,8 @@ export const navItems = [
         icon: CalendarDays,
     },
     {
-        label: "الأرشيف",
-        href: "/archive",
+        label: "الأسابيع",
+        href: "/weeks",
         icon: Archive,
     },
     {
@@ -43,6 +45,13 @@ export const navItems = [
 export function Sidebar() {
     const pathname = usePathname();
     const { collapsed, toggle } = useSidebarState();
+
+    const handleSignOut = async () => {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+        resetAuthState();
+        window.location.href = "/login";
+    };
 
     return (
         <motion.aside
@@ -131,8 +140,33 @@ export function Sidebar() {
                 })}
             </nav>
 
-            {/* Collapse Toggle */}
-            <div className="border-t border-sidebar-border p-3">
+            {/* Collapse Toggle + Sign Out */}
+            <div className="border-t border-sidebar-border p-3 space-y-1">
+                <button
+                    onClick={handleSignOut}
+                    className={cn(
+                        "flex w-full items-center gap-2 rounded-lg px-3 py-2.5",
+                        "text-muted-foreground transition-colors duration-200",
+                        "hover:bg-destructive/10 hover:text-destructive",
+                        "cursor-pointer",
+                    )}
+                >
+                    <LogOut className="h-4 w-4 shrink-0" />
+                    <AnimatePresence mode="wait">
+                        {!collapsed && (
+                            <motion.span
+                                key="signout-text"
+                                initial={{ opacity: 0, width: 0 }}
+                                animate={{ opacity: 1, width: "auto" }}
+                                exit={{ opacity: 0, width: 0 }}
+                                transition={{ duration: 0.15 }}
+                                className="text-xs whitespace-nowrap overflow-hidden"
+                            >
+                                تسجيل الخروج
+                            </motion.span>
+                        )}
+                    </AnimatePresence>
+                </button>
                 <button
                     onClick={toggle}
                     className={cn(

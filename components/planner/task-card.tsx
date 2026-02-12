@@ -4,8 +4,19 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { PriorityBadge } from "@/components/ui/priority-badge";
 import { usePlannerStore } from "@/lib/planner-store";
-import { Check, GripVertical, Pencil, Trash2 } from "lucide-react";
+import { Check, GripVertical, Pencil, Trash2, Clock } from "lucide-react";
 import type { Task } from "@/types";
+
+/** Format "14:30:00" or "14:30" → "02:30 PM" */
+function formatTime12(time: string): string {
+    const [hStr, mStr] = time.split(":");
+    let h = parseInt(hStr, 10);
+    const m = mStr ?? "00";
+    const ampm = h >= 12 ? "PM" : "AM";
+    if (h === 0) h = 12;
+    else if (h > 12) h -= 12;
+    return `${h}:${m} ${ampm}`;
+}
 
 interface TaskCardProps {
     task: Task;
@@ -17,8 +28,18 @@ export function TaskCard({ task, isDragging = false, onEdit }: TaskCardProps) {
     const toggleComplete = usePlannerStore((s) => s.toggleComplete);
     const deleteTask = usePlannerStore((s) => s.deleteTask);
 
+    // ── Native HTML5 DnD ──
+    const handleDragStart = (e: React.DragEvent) => {
+        e.dataTransfer.setData("text/plain", task.id);
+        e.dataTransfer.setData("application/from-date", task.date ?? "");
+        e.dataTransfer.setData("application/source", task.isBrainDump ? "brain_dump" : "day_column");
+        e.dataTransfer.effectAllowed = "move";
+    };
+
     return (
         <div
+            draggable
+            onDragStart={handleDragStart}
             onDoubleClick={() => onEdit?.(task)}
             className={cn(
                 "group relative rounded-lg border p-3 transition-colors duration-200",
@@ -33,7 +54,7 @@ export function TaskCard({ task, isDragging = false, onEdit }: TaskCardProps) {
             )}
         >
             <div className="flex items-start gap-2.5">
-                {/* Drag Handle (visual only for now — DnD TBD for React 19 compat) */}
+                {/* Drag Handle */}
                 <div className="mt-0.5 cursor-grab text-slate-600 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing">
                     <GripVertical className="h-4 w-4" />
                 </div>
@@ -62,6 +83,15 @@ export function TaskCard({ task, isDragging = false, onEdit }: TaskCardProps) {
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
+                    {/* Meeting time badge */}
+                    {(task.startTime || task.priority === "meeting") && task.startTime && (
+                        <div className="flex items-center gap-1 mb-1">
+                            <Clock className="h-3 w-3 text-priority-meeting" />
+                            <span className="text-[11px] font-semibold text-priority-meeting">
+                                {formatTime12(task.startTime)}
+                            </span>
+                        </div>
+                    )}
                     <p
                         className={cn(
                             "text-sm font-medium leading-tight text-foreground transition-all duration-300",

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlannerStore } from "@/lib/planner-store";
+import { getWeekDays } from "@/lib/week-utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { CyberButton } from "@/components/ui/cyber-button";
 import { PriorityBadge } from "@/components/ui/priority-badge";
@@ -75,7 +76,8 @@ function SchedulePicker({
     onClose: () => void;
 }) {
     const scheduleTask = usePlannerStore((s) => s.scheduleTask);
-    const columns = usePlannerStore((s) => s.getDayColumns());
+    const currentDate = usePlannerStore((s) => s.currentDate);
+    const columns = useMemo(() => getWeekDays(currentDate), [currentDate]);
 
     return (
         <motion.div
@@ -115,12 +117,22 @@ function BrainDumpItem({ task }: { task: Task }) {
     const deleteTask = usePlannerStore((s) => s.deleteTask);
     const [showSchedule, setShowSchedule] = useState(false);
 
+    // ── Native HTML5 DnD ──
+    const handleDragStart = (e: React.DragEvent) => {
+        e.dataTransfer.setData("text/plain", task.id);
+        e.dataTransfer.setData("application/from-date", "");
+        e.dataTransfer.setData("application/source", "brain_dump");
+        e.dataTransfer.effectAllowed = "move";
+    };
+
     return (
         <div className="group relative">
             <div
+                draggable
+                onDragStart={handleDragStart}
                 className={cn(
                     "flex items-center gap-2 rounded-lg border border-slate-800/60 bg-slate-900/40 p-2.5",
-                    "transition-colors hover:border-slate-700",
+                    "transition-colors hover:border-slate-700 cursor-grab active:cursor-grabbing",
                 )}
             >
                 {/* Dot */}

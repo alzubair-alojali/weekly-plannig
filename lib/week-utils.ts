@@ -8,6 +8,8 @@ import {
     isToday,
     isSameDay,
     parseISO,
+    getWeek,
+    getWeekYear,
 } from "date-fns";
 import { ar } from "date-fns/locale";
 import type { DayOfWeek, DayColumn } from "@/types";
@@ -113,3 +115,15 @@ export function formatWeekRange(date: Date = new Date()): string {
 }
 
 export { dayLabels, dayLabelsShort, dayIdMap };
+
+/** Get the week number for DB storage (consistent with Saturday-start weeks) */
+export function getWeekNumber(date: Date = new Date()): number {
+    const start = getWeekStart(date);
+    return getWeek(start, { weekStartsOn: WEEK_START_DAY });
+}
+
+/** Get the year for DB storage (week-year, accounts for year boundary weeks) */
+export function getWeekYearNum(date: Date = new Date()): number {
+    const start = getWeekStart(date);
+    return getWeekYear(start, { weekStartsOn: WEEK_START_DAY });
+}

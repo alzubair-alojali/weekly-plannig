@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { usePlannerStore } from "@/lib/planner-store";
 import { formatWeekRange } from "@/lib/week-utils";
 import { CyberButton } from "@/components/ui/cyber-button";
@@ -20,7 +21,8 @@ export function WeekNavigator({ onStartReview }: WeekNavigatorProps) {
     const goToNextWeek = usePlannerStore((s) => s.goToNextWeek);
     const goToPrevWeek = usePlannerStore((s) => s.goToPrevWeek);
     const goToToday = usePlannerStore((s) => s.goToToday);
-    const existingReview = usePlannerStore((s) => s.getReviewForWeek(weekId));
+    const reviews = usePlannerStore((s) => s.reviews);
+    const existingReview = useMemo(() => reviews.find((r) => r.weekId === weekId), [reviews, weekId]);
 
     const weekRange = formatWeekRange(currentDate);
 

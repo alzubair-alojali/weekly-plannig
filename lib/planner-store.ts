@@ -1,6 +1,13 @@
 import { create } from "zustand";
-import type { Task, Priority, DayOfWeek, WeeklyReview } from "@/types";
+import type { Task, Priority, DayOfWeek, WeeklyReview, WeekMeta } from "@/types";
 import { getWeekDays, getWeekId } from "@/lib/week-utils";
+import {
+    fetchTasksForWeek,
+    insertTask,
+    updateTaskInDb,
+    deleteTaskFromDb,
+} from "@/lib/supabase-tasks";
+import { getOrCreateWeek, updateWeekInDb } from "@/lib/supabase-weeks";
 
 // ── Helper: generate unique ID ──
 function uid(): string {
@@ -25,7 +32,13 @@ function orderBetween(before: number | null, after: number | null): number {
 interface PlannerState {
     // Current week navigation
     currentDate: Date;
-    weekId: string;
+    weekId: string;        // Display ID like "2026-W07"
+    weekDbId: string | null; // UUID from weeks table
+
+    // Supabase sync
+    isSyncing: boolean;
+    hasFetched: boolean; // true once initial fetch completes for current week
+    syncWeek: (date?: Date) => Promise<void>;
 
     // All tasks (flat list, filtered by weekId/date for display)
     tasks: Task[];
@@ -35,6 +48,9 @@ interface PlannerState {
 
     // Weekly reviews
     reviews: WeeklyReview[];
+
+    // Week metadata (challenges, etc.)
+    weekMetas: WeekMeta[];
 
     // ── Actions ──
     // Week navigation
@@ -48,6 +64,7 @@ interface PlannerState {
         date: string | null;
         priority?: Priority;
         isBrainDump?: boolean;
+        startTime?: string | null;
     }) => void;
     updateTask: (id: string, updates: Partial<Omit<Task, "id" | "createdAt">>) => void;
     deleteTask: (id: string) => void;
@@ -69,6 +86,12 @@ interface PlannerState {
     getReviewForWeek: (weekId: string) => WeeklyReview | undefined;
     getAllReviews: () => WeeklyReview[];
 
+    // Weekly Challenge
+    setWeeklyChallenge: (challenge: string) => void;
+    getWeekMeta: (weekId: string) => WeekMeta | undefined;
+    getWeeklyChallenge: () => string;
+    getVisitedWeeks: () => { weekId: string; challenge: string; taskCount: number; completedCount: number; hasReview: boolean }[];
+
     // Selectors
     getTasksForDate: (date: string) => Task[];
     getDayColumns: () => { id: DayOfWeek; label: string; date: string; tasks: Task[] }[];
@@ -80,9 +103,84 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
     return {
         currentDate: now,
         weekId: getWeekId(now),
+        weekDbId: null,
+        isSyncing: false,
+        hasFetched: false,
         tasks: [],
         brainDumpTasks: [],
         reviews: [],
+        weekMetas: [],
+
+        // ── Supabase Sync ──
+        syncWeek: async (overrideDate?: Date) => {
+            const dateToUse = overrideDate ?? get().currentDate;
+            set({ isSyncing: true });
+            try {
+                // Step 1: Resolve week UUID from weeks table (creates if needed)
+                const weekRow = await getOrCreateWeek(dateToUse);
+                if (!weekRow) {
+                    console.error("[Store] ❌ Could not resolve week — auth missing?");
+                    return;
+                }
+
+                const weekDbId = weekRow.id;
+                set({ weekDbId });
+
+                // Step 2: Fetch tasks using the week UUID
+                const { tasks, brainDump } = await fetchTasksForWeek(weekDbId);
+
+                // Preserve optimistic tasks with temp- IDs (pending inserts)
+                const pendingTasks = get().tasks.filter((t) => t.id.startsWith("temp-"));
+                const pendingBrainDump = get().brainDumpTasks.filter((t) => t.id.startsWith("temp-"));
+
+                // Step 3: Load week metadata (challenge, review) from weeks table
+                const displayWeekId = getWeekId(dateToUse);
+                const existingMeta = get().weekMetas.find((m) => m.weekId === displayWeekId);
+                const updatedMetas = existingMeta
+                    ? get().weekMetas.map((m) =>
+                        m.weekId === displayWeekId
+                            ? { ...m, weekDbId, weeklyChallenge: weekRow.weekly_challenge ?? m.weeklyChallenge }
+                            : m,
+                    )
+                    : [
+                        ...get().weekMetas,
+                        {
+                            weekId: displayWeekId,
+                            weekDbId,
+                            weeklyChallenge: weekRow.weekly_challenge ?? "",
+                            createdAt: weekRow.created_at,
+                        },
+                    ];
+
+                // Load review from weeks table if available
+                const reviews = [...get().reviews];
+                if (weekRow.review_good || weekRow.review_bad || weekRow.review_learned) {
+                    const existingReview = reviews.find((r) => r.weekId === displayWeekId);
+                    if (!existingReview) {
+                        reviews.push({
+                            id: weekRow.id,
+                            weekId: displayWeekId,
+                            good: weekRow.review_good ?? "",
+                            bad: weekRow.review_bad ?? "",
+                            learned: weekRow.review_learned ?? "",
+                            completedAt: weekRow.created_at,
+                        });
+                    }
+                }
+
+                set({
+                    tasks: [...tasks, ...pendingTasks],
+                    brainDumpTasks: [...brainDump, ...pendingBrainDump],
+                    hasFetched: true,
+                    weekMetas: updatedMetas,
+                    reviews,
+                });
+            } catch (err) {
+                console.error("[Store] ❌ syncWeek error:", err);
+            } finally {
+                set({ isSyncing: false });
+            }
+        },
 
         // ── Week Navigation ──
         goToNextWeek: () => {
@@ -107,29 +205,79 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
         },
 
         // ── Task CRUD ──
-        addTask: ({ title, date, priority = "medium", isBrainDump = false }) => {
+        addTask: ({ title, date, priority = "medium", isBrainDump = false, startTime = null }) => {
             const state = get();
             const targetTasks = isBrainDump
                 ? state.brainDumpTasks
                 : state.tasks.filter((t) => t.date === date);
 
+            // Temporary optimistic ID (prefixed so we can identify it)
+            const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
             const newTask: Task = {
-                id: uid(),
+                id: tempId,
                 title,
                 isCompleted: false,
                 priority,
+                startTime,
                 isBrainDump,
-                weekId: isBrainDump ? null : state.weekId,
+                weekId: isBrainDump ? null : state.weekDbId,  // Use week UUID
                 date: isBrainDump ? null : date,
                 order: nextOrder(targetTasks),
                 createdAt: new Date().toISOString(),
             };
 
+            // Optimistic update — task appears immediately
             if (isBrainDump) {
                 set((s) => ({ brainDumpTasks: [...s.brainDumpTasks, newTask] }));
             } else {
-                set((s) => ({ tasks: [...s.tasks, newTask] }));
+                const hasWeekMeta = state.weekMetas.some((m) => m.weekId === state.weekId);
+                set((s) => ({
+                    tasks: [...s.tasks, newTask],
+                    ...(hasWeekMeta
+                        ? {}
+                        : {
+                            weekMetas: [
+                                ...s.weekMetas,
+                                { weekId: s.weekId, weekDbId: s.weekDbId, weeklyChallenge: "", createdAt: new Date().toISOString() },
+                            ],
+                        }),
+                }));
             }
+
+            // Persist to Supabase and swap temp ID → real DB UUID
+            insertTask({
+                title,
+                priority,
+                startTime,
+                isBrainDump,
+                weekId: newTask.weekId,   // week UUID (or null for brain dump)
+                date: newTask.date,
+                order: newTask.order,
+                isCompleted: false,
+            }).then((saved) => {
+                if (!saved) {
+                    console.error("[Store] ❌ Insert failed — removing optimistic task", tempId);
+                    // Roll back optimistic update
+                    set((s) => ({
+                        tasks: s.tasks.filter((t) => t.id !== tempId),
+                        brainDumpTasks: s.brainDumpTasks.filter((t) => t.id !== tempId),
+                    }));
+                    return;
+                }
+                // Replace temp task with the real one (has DB-generated UUID)
+                set((s) => ({
+                    tasks: s.tasks.map((t) => (t.id === tempId ? saved : t)),
+                    brainDumpTasks: s.brainDumpTasks.map((t) => (t.id === tempId ? saved : t)),
+                }));
+                console.log("[Store] ✅ Swapped temp", tempId, "→ real", saved.id);
+            }).catch((err) => {
+                console.error("[Store] ❌ Insert threw:", err);
+                set((s) => ({
+                    tasks: s.tasks.filter((t) => t.id !== tempId),
+                    brainDumpTasks: s.brainDumpTasks.filter((t) => t.id !== tempId),
+                }));
+            });
         },
 
         updateTask: (id, updates) => {
@@ -139,6 +287,8 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                     t.id === id ? { ...t, ...updates } : t,
                 ),
             }));
+            // Sync to Supabase
+            updateTaskInDb(id, updates as Partial<Task>);
         },
 
         deleteTask: (id) => {
@@ -146,9 +296,12 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                 tasks: state.tasks.filter((t) => t.id !== id),
                 brainDumpTasks: state.brainDumpTasks.filter((t) => t.id !== id),
             }));
+            // Sync to Supabase
+            deleteTaskFromDb(id);
         },
 
         toggleComplete: (id) => {
+            const task = get().tasks.find((t) => t.id === id) ?? get().brainDumpTasks.find((t) => t.id === id);
             set((state) => ({
                 tasks: state.tasks.map((t) =>
                     t.id === id ? { ...t, isCompleted: !t.isCompleted } : t,
@@ -157,6 +310,8 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                     t.id === id ? { ...t, isCompleted: !t.isCompleted } : t,
                 ),
             }));
+            // Sync to Supabase
+            if (task) updateTaskInDb(id, { isCompleted: !task.isCompleted });
         },
 
         // ── Drag & Drop ──
@@ -189,7 +344,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                     ...task,
                     date: toDate,
                     isBrainDump: toDate === null,
-                    weekId: toDate ? state.weekId : null,
+                    weekId: toDate ? state.weekDbId : null,
                     order: newOrder,
                 };
 
@@ -202,6 +357,18 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
 
                 return { tasks: newTasks, brainDumpTasks: newBrainDump };
             });
+
+            // Sync to Supabase (fire-and-forget)
+            const state = get();
+            const moved = state.tasks.find((t) => t.id === taskId) ?? state.brainDumpTasks.find((t) => t.id === taskId);
+            if (moved) {
+                updateTaskInDb(taskId, {
+                    date: moved.date,
+                    isBrainDump: moved.isBrainDump,
+                    weekId: moved.weekId,
+                    order: moved.order,
+                });
+            }
         },
 
         // ── Brain Dump → Scheduled ──
@@ -214,7 +381,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                 const updated: Task = {
                     ...task,
                     isBrainDump: false,
-                    weekId: state.weekId,
+                    weekId: state.weekDbId,
                     date,
                     order: nextOrder(dateTasks),
                 };
@@ -224,6 +391,18 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                     tasks: [...state.tasks, updated],
                 };
             });
+
+            // Sync to Supabase
+            const state = get();
+            const scheduled = state.tasks.find((t) => t.id === taskId);
+            if (scheduled) {
+                updateTaskInDb(taskId, {
+                    isBrainDump: false,
+                    weekId: scheduled.weekId,
+                    date: scheduled.date,
+                    order: scheduled.order,
+                });
+            }
         },
 
         // ── Weekly Reviews ──
@@ -232,7 +411,6 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
             const existing = state.reviews.find((r) => r.weekId === state.weekId);
 
             if (existing) {
-                // Update existing review
                 set((s) => ({
                     reviews: s.reviews.map((r) =>
                         r.weekId === s.weekId
@@ -241,7 +419,6 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                     ),
                 }));
             } else {
-                // Create new review
                 const newReview: WeeklyReview = {
                     id: uid(),
                     weekId: state.weekId,
@@ -252,6 +429,15 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                 };
                 set((s) => ({ reviews: [...s.reviews, newReview] }));
             }
+
+            // Persist to weeks table
+            if (state.weekDbId) {
+                updateWeekInDb(state.weekDbId, {
+                    review_good: good,
+                    review_bad: bad,
+                    review_learned: learned,
+                });
+            }
         },
 
         getReviewForWeek: (weekId) => {
@@ -260,6 +446,62 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
 
         getAllReviews: () => {
             return get().reviews;
+        },
+
+        // ── Weekly Challenge ──
+        setWeeklyChallenge: (challenge) => {
+            const state = get();
+            const existing = state.weekMetas.find((m) => m.weekId === state.weekId);
+            if (existing) {
+                set((s) => ({
+                    weekMetas: s.weekMetas.map((m) =>
+                        m.weekId === s.weekId ? { ...m, weeklyChallenge: challenge } : m,
+                    ),
+                }));
+            } else {
+                set((s) => ({
+                    weekMetas: [
+                        ...s.weekMetas,
+                        { weekId: s.weekId, weekDbId: s.weekDbId, weeklyChallenge: challenge, createdAt: new Date().toISOString() },
+                    ],
+                }));
+            }
+
+            // Persist to weeks table
+            if (state.weekDbId) {
+                updateWeekInDb(state.weekDbId, { weekly_challenge: challenge });
+            }
+        },
+
+        getWeekMeta: (weekId) => {
+            return get().weekMetas.find((m) => m.weekId === weekId);
+        },
+
+        getWeeklyChallenge: () => {
+            const state = get();
+            return state.weekMetas.find((m) => m.weekId === state.weekId)?.weeklyChallenge ?? "";
+        },
+
+        getVisitedWeeks: () => {
+            const state = get();
+            // Collect all unique weekIds from tasks, reviews, and weekMetas
+            const weekIds = new Set<string>();
+            state.tasks.forEach((t) => { if (t.weekId) weekIds.add(t.weekId); });
+            state.reviews.forEach((r) => weekIds.add(r.weekId));
+            state.weekMetas.forEach((m) => weekIds.add(m.weekId));
+
+            return Array.from(weekIds)
+                .sort((a, b) => b.localeCompare(a)) // newest first
+                .map((wid) => {
+                    const weekTasks = state.tasks.filter((t) => t.weekId === wid);
+                    return {
+                        weekId: wid,
+                        challenge: state.weekMetas.find((m) => m.weekId === wid)?.weeklyChallenge ?? "",
+                        taskCount: weekTasks.length,
+                        completedCount: weekTasks.filter((t) => t.isCompleted).length,
+                        hasReview: state.reviews.some((r) => r.weekId === wid),
+                    };
+                });
         },
 
         // ── Selectors ──

@@ -22,6 +22,9 @@ const badgeVariants = cva(
                 low: [
                     "bg-priority-low/10 text-priority-low border-priority-low/20",
                 ],
+                meeting: [
+                    "bg-priority-meeting/10 text-priority-meeting border-priority-meeting/20",
+                ],
             },
         },
         defaultVariants: {
@@ -34,6 +37,7 @@ const priorityLabels: Record<Priority, string> = {
     high: "عالي",
     medium: "متوسط",
     low: "منخفض",
+    meeting: "اجتماع",
 };
 
 interface PriorityBadgeProps
@@ -61,6 +65,7 @@ function PriorityBadge({
                         "bg-priority-high": priority === "high",
                         "bg-priority-medium": priority === "medium",
                         "bg-priority-low": priority === "low",
+                        "bg-priority-meeting": priority === "meeting",
                     })}
                 />
             )}

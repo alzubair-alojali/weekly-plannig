@@ -2,6 +2,7 @@
 
 import { Sidebar } from "./sidebar";
 import { TopBar } from "./top-bar";
+import { BottomNav } from "./bottom-nav";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SidebarProvider, useSidebarState } from "./sidebar-context";
 
@@ -26,9 +27,13 @@ function ShellContent({ children }: AppShellProps) {
             >
                 <TopBar />
                 <ScrollArea className="flex-1">
-                    <main className="p-4 md:p-6">{children}</main>
+                    {/* pb-20 on mobile for bottom nav clearance */}
+                    <main className="p-4 pb-24 md:p-6 md:pb-6">{children}</main>
                 </ScrollArea>
             </div>
+
+            {/* Mobile Bottom Navigation */}
+            <BottomNav />
         </div>
     );
 }

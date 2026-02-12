@@ -12,8 +12,9 @@ import {
 } from "@/components/ui/dialog";
 import { CyberButton } from "@/components/ui/cyber-button";
 import { PriorityBadge } from "@/components/ui/priority-badge";
-import { AlignRight, Sparkles } from "lucide-react";
+import { AlignRight, Sparkles, Clock } from "lucide-react";
 import type { Task, Priority } from "@/types";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface TaskEditDialogProps {
     task: Task | null;
@@ -35,13 +36,18 @@ function TaskEditForm({
     const [title, setTitle] = useState(task.title);
     const [description, setDescription] = useState(task.description ?? "");
     const [priority, setPriority] = useState<Priority>(task.priority);
+    const [isMeeting, setIsMeeting] = useState(task.priority === "meeting");
+    const [startTime, setStartTime] = useState(
+        task.startTime ? task.startTime.slice(0, 5) : "", // "14:30:00" → "14:30"
+    );
 
     const handleSave = () => {
         if (!title.trim()) return;
         updateTask(task.id, {
             title: title.trim(),
             description: description.trim() || undefined,
-            priority,
+            priority: isMeeting ? "meeting" : priority,
+            startTime: isMeeting && startTime ? startTime + ":00" : null,
         });
         onOpenChange(false);
     };
@@ -102,24 +108,76 @@ function TaskEditForm({
                     <label className="text-xs font-semibold text-muted-foreground">
                         الأولوية
                     </label>
-                    <div className="flex gap-2">
-                        {priorities.map((p) => (
-                            <button
-                                key={p}
-                                type="button"
-                                onClick={() => setPriority(p)}
-                                className={cn(
-                                    "rounded-lg border px-3 py-1.5 transition-all duration-200 cursor-pointer",
-                                    priority === p
-                                        ? "border-cyber-blue/30 bg-cyber-blue/10 scale-105"
-                                        : "border-slate-800 bg-slate-900/40 hover:border-slate-700",
-                                )}
-                            >
-                                <PriorityBadge priority={p} className="border-0 bg-transparent px-0 py-0" />
-                            </button>
-                        ))}
-                    </div>
+                    {!isMeeting && (
+                        <div className="flex gap-2">
+                            {priorities.map((p) => (
+                                <button
+                                    key={p}
+                                    type="button"
+                                    onClick={() => setPriority(p)}
+                                    className={cn(
+                                        "rounded-lg border px-3 py-1.5 transition-all duration-200 cursor-pointer",
+                                        priority === p
+                                            ? "border-cyber-blue/30 bg-cyber-blue/10 scale-105"
+                                            : "border-slate-800 bg-slate-900/40 hover:border-slate-700",
+                                    )}
+                                >
+                                    <PriorityBadge priority={p} className="border-0 bg-transparent px-0 py-0" />
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    {isMeeting && (
+                        <div className="flex gap-2">
+                            <div className="rounded-lg border border-priority-meeting/30 bg-priority-meeting/10 px-3 py-1.5">
+                                <PriorityBadge priority="meeting" className="border-0 bg-transparent px-0 py-0" />
+                            </div>
+                        </div>
+                    )}
                 </div>
+
+                {/* Meeting Toggle */}
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <div
+                        className={cn(
+                            "flex h-5 w-5 items-center justify-center rounded-md border transition-all",
+                            isMeeting
+                                ? "border-priority-meeting bg-priority-meeting/20"
+                                : "border-slate-700 hover:border-slate-600",
+                        )}
+                        onClick={() => setIsMeeting(!isMeeting)}
+                    >
+                        {isMeeting && <Clock className="h-3 w-3 text-priority-meeting" />}
+                    </div>
+                    <span className="text-xs text-muted-foreground">اجتماع / موعد</span>
+                </label>
+
+                {/* Time Picker */}
+                <AnimatePresence>
+                    {isMeeting && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden space-y-1"
+                        >
+                            <label className="text-xs font-semibold text-muted-foreground">
+                                وقت الاجتماع
+                            </label>
+                            <input
+                                type="time"
+                                value={startTime}
+                                onChange={(e) => setStartTime(e.target.value)}
+                                className={cn(
+                                    "w-full rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2.5",
+                                    "text-sm text-foreground outline-none transition-colors",
+                                    "focus:border-priority-meeting/40 focus:ring-1 focus:ring-priority-meeting/20",
+                                    "[color-scheme:dark]",
+                                )}
+                            />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             <DialogFooter className="gap-2 sm:gap-2">
