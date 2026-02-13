@@ -5,12 +5,16 @@ import { motion } from "framer-motion";
 import { usePlannerStore } from "@/lib/planner-store";
 import { getWeekDays } from "@/lib/week-utils";
 import { DayColumn } from "./day-column";
+import { WeeklyReviewCard } from "./weekly-review-card";
 import type { Task } from "@/types";
 
 interface PlannerGridProps {
     onEditTask?: (task: Task) => void;
     /** The current weekly challenge string to show in each column */
+    /** The current weekly challenge string to show in each column */
     weeklyChallenge?: string;
+    onCopyTask?: (task: Task) => void;
+    onStartReview?: () => void;
 }
 
 const stagger = {
@@ -30,7 +34,7 @@ const fadeScale = {
     },
 };
 
-export function PlannerGrid({ onEditTask, weeklyChallenge }: PlannerGridProps) {
+export function PlannerGrid({ onEditTask, weeklyChallenge, onCopyTask, onStartReview }: PlannerGridProps) {
     const currentDate = usePlannerStore((s) => s.currentDate);
     const tasks = usePlannerStore((s) => s.tasks);
     const weekId = usePlannerStore((s) => s.weekId);
@@ -68,12 +72,18 @@ export function PlannerGrid({ onEditTask, weeklyChallenge }: PlannerGridProps) {
                         tasks={col.tasks}
                         fullHeight
                         onEditTask={onEditTask}
+                        onCopyTask={onCopyTask}
                         weeklyChallenge={weeklyChallenge}
                         challengeChecked={challengeProgress.includes(col.date)}
                         onToggleChallenge={toggleChallengeDay}
                     />
                 </motion.div>
             ))}
+
+            {/* Weekly Review Card (Last item) */}
+            <motion.div variants={fadeScale} className="h-full">
+                <WeeklyReviewCard onClick={() => onStartReview?.()} />
+            </motion.div>
         </motion.div>
     );
 }

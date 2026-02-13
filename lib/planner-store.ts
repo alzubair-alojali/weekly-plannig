@@ -65,7 +65,11 @@ interface PlannerState {
         priority?: Priority;
         isBrainDump?: boolean;
         startTime?: string | null;
+        skipOptimistic?: boolean; // Internal use for duplication
     }) => void;
+    // Duplication
+    duplicateTask: (taskId: string, targetDate: string) => void;
+
     updateTask: (id: string, updates: Partial<Omit<Task, "id" | "createdAt">>) => void;
     deleteTask: (id: string) => void;
     toggleComplete: (id: string) => void;
@@ -213,7 +217,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
         },
 
         // ── Task CRUD ──
-        addTask: ({ title, date, priority = "medium", isBrainDump = false, startTime = null }) => {
+        addTask: ({ title, date, priority = "medium", isBrainDump = false, startTime = null, skipOptimistic = false }) => {
             const state = get();
             const targetTasks = isBrainDump
                 ? state.brainDumpTasks
@@ -320,6 +324,21 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
             }));
             // Sync to Supabase
             if (task) updateTaskInDb(id, { isCompleted: !task.isCompleted });
+        },
+
+        duplicateTask: (taskId, targetDate) => {
+            const state = get();
+            const original = state.tasks.find((t) => t.id === taskId) ?? state.brainDumpTasks.find((t) => t.id === taskId);
+            if (!original) return;
+
+            // Reuse addTask logic but targeting new date
+            get().addTask({
+                title: original.title,
+                date: targetDate,
+                priority: original.priority,
+                isBrainDump: false,
+                startTime: original.startTime,
+            });
         },
 
         // ── Drag & Drop ──
@@ -550,18 +569,61 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
         getTasksForDate: (date) => {
             return get()
                 .tasks.filter((t) => t.date === date)
-                .sort((a, b) => a.order - b.order);
+                .sort((a, b) => {
+                    // 1. Meetings first (checking startTime or priority)
+                    const aIsMeeting = a.startTime || a.priority === "meeting";
+                    const bIsMeeting = b.startTime || b.priority === "meeting";
+
+                    if (aIsMeeting && !bIsMeeting) return -1;
+                    if (!aIsMeeting && bIsMeeting) return 1;
+
+                    // If both are meetings, sort by time if available
+                    if (aIsMeeting && bIsMeeting && a.startTime && b.startTime) {
+                        return a.startTime.localeCompare(b.startTime);
+                    }
+
+                    // 2. Priority: High > Medium > Low
+                    const pOrder = { high: 0, medium: 1, low: 2, meeting: -1 }; // meeting handled above generally
+                    const pa = pOrder[a.priority as keyof typeof pOrder] ?? 1;
+                    const pb = pOrder[b.priority as keyof typeof pOrder] ?? 1;
+                    if (pa !== pb) return pa - pb;
+
+                    // 3. Manual Order
+                    return a.order - b.order;
+                });
         },
 
         getDayColumns: () => {
             const state = get();
             const weekDays = getWeekDays(state.currentDate);
 
+            // Re-use sorting logic
+            const sortTasks = (tasks: Task[]) => {
+                return tasks.sort((a, b) => {
+                     // 1. Meetings
+                     const aIsMeeting = a.startTime || a.priority === "meeting";
+                     const bIsMeeting = b.startTime || b.priority === "meeting";
+                     if (aIsMeeting && !bIsMeeting) return -1;
+                     if (!aIsMeeting && bIsMeeting) return 1;
+ 
+                     if (aIsMeeting && bIsMeeting && a.startTime && b.startTime) {
+                         return a.startTime.localeCompare(b.startTime);
+                     }
+ 
+                     // 2. Priority
+                     const pOrder = { high: 0, medium: 1, low: 2, meeting: -1 };
+                     const pa = pOrder[a.priority as keyof typeof pOrder] ?? 1;
+                     const pb = pOrder[b.priority as keyof typeof pOrder] ?? 1;
+                     if (pa !== pb) return pa - pb;
+ 
+                     // 3. Order
+                     return a.order - b.order;
+                });
+            };
+
             return weekDays.map((day) => ({
                 ...day,
-                tasks: state.tasks
-                    .filter((t) => t.date === day.date)
-                    .sort((a, b) => a.order - b.order),
+                tasks: sortTasks(state.tasks.filter((t) => t.date === day.date)),
             }));
         },
     };

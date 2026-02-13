@@ -62,11 +62,7 @@ export function BottomNav() {
                                 <item.icon className="h-5 w-5" />
                                 <span className="text-[10px] font-medium">{item.label}</span>
                                 {isActive && (
-                                    <motion.div
-                                        layoutId="bottom-nav-indicator"
-                                        className="absolute -top-px start-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-cyber-blue"
-                                        transition={{ type: "spring", duration: 0.4, bounce: 0.15 }}
-                                    />
+                                    <span className="sr-only">Active</span>
                                 )}
                             </Link>
                         );

@@ -28,7 +28,7 @@ export function WeekNavigator({ onStartReview }: WeekNavigatorProps) {
     const weekNumber = useMemo(() => getWeekNumber(currentDate), [currentDate]);
 
     return (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center justify-between gap-3">
             {/* Week Number (Restored) */}
             <div className="flex items-center gap-3">
                 <span className="text-xl font-bold text-foreground">الأسبوع {weekNumber}</span>
@@ -65,21 +65,6 @@ export function WeekNavigator({ onStartReview }: WeekNavigatorProps) {
                     <ChevronLeft className="h-4 w-4" />
                     <span className="text-sm font-medium">التالي</span>
                 </CyberButton>
-
-                {/* Review button */}
-                {onStartReview && (
-                    <CyberButton
-                        variant={existingReview ? "secondary" : "accent"}
-                        size="sm"
-                        onClick={onStartReview}
-                        className="gap-1.5 ms-1"
-                    >
-                        <ClipboardCheck className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">
-                            {existingReview ? "عرض المراجعة" : "مراجعة الأسبوع"}
-                        </span>
-                    </CyberButton>
-                )}
             </div>
         </div>
     );

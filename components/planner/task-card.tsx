@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { PriorityBadge } from "@/components/ui/priority-badge";
 import { usePlannerStore } from "@/lib/planner-store";
-import { Check, GripVertical, Pencil, Trash2, Clock } from "lucide-react";
+import { Check, GripVertical, Pencil, Trash2, Clock, Copy } from "lucide-react";
 import type { Task } from "@/types";
 
 /** Format "14:30:00" or "14:30" → "02:30 PM" */
@@ -22,9 +22,10 @@ interface TaskCardProps {
     task: Task;
     isDragging?: boolean;
     onEdit?: (task: Task) => void;
+    onCopy?: (task: Task) => void;
 }
 
-export function TaskCard({ task, isDragging = false, onEdit }: TaskCardProps) {
+export function TaskCard({ task, isDragging = false, onEdit, onCopy }: TaskCardProps) {
     const toggleComplete = usePlannerStore((s) => s.toggleComplete);
     const deleteTask = usePlannerStore((s) => s.deleteTask);
 
@@ -120,6 +121,17 @@ export function TaskCard({ task, isDragging = false, onEdit }: TaskCardProps) {
                         )}
                     >
                         <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                        onClick={() => onCopy?.(task)}
+                        className={cn(
+                            "rounded p-1 text-slate-600 opacity-0 transition-all",
+                            "hover:bg-cyber-blue/10 hover:text-cyber-blue",
+                            "group-hover:opacity-100",
+                            "cursor-pointer",
+                        )}
+                    >
+                        <Copy className="h-3.5 w-3.5" />
                     </button>
                     <button
                         onClick={() => deleteTask(task.id)}

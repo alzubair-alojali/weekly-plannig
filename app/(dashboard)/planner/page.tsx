@@ -14,11 +14,14 @@ import {
     BrainDumpSkeleton,
     ChallengeSkeleton,
 } from "@/components/planner/planner-skeleton";
+import { TaskCopyDialog } from "@/components/planner/task-copy-dialog";
 import type { Task } from "@/types";
 
 export default function PlannerPage() {
     const [editingTask, setEditingTask] = useState<Task | null>(null);
+    const [copyingTask, setCopyingTask] = useState<Task | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [copyDialogOpen, setCopyDialogOpen] = useState(false);
     const [reviewOpen, setReviewOpen] = useState(false);
     const [authReady, setAuthReady] = useState(false);
     const weekId = usePlannerStore((s) => s.weekId);
@@ -62,12 +65,17 @@ export default function PlannerPage() {
         setDialogOpen(true);
     };
 
+    const handleCopyTask = (task: Task) => {
+        setCopyingTask(task);
+        setCopyDialogOpen(true);
+    };
+
     const isLoading = !authReady || isSyncing || !hasFetched;
 
     return (
         <div className="space-y-5">
             {/* Week Navigation Header */}
-            <WeekNavigator onStartReview={() => setReviewOpen(true)} />
+            <WeekNavigator />
 
             {/* Weekly Challenge */}
             {isLoading ? <ChallengeSkeleton /> : <WeeklyChallengeInput />}
@@ -79,7 +87,12 @@ export default function PlannerPage() {
             {isLoading ? (
                 <PlannerGridSkeleton />
             ) : (
-                <PlannerGrid onEditTask={handleEditTask} weeklyChallenge={weeklyChallenge || undefined} />
+                <PlannerGrid
+                    onEditTask={handleEditTask}
+                    onCopyTask={handleCopyTask}
+                    weeklyChallenge={weeklyChallenge || undefined}
+                    onStartReview={() => setReviewOpen(true)}
+                />
             )}
 
             {/* Task Edit Dialog */}
@@ -91,6 +104,13 @@ export default function PlannerPage() {
 
             {/* Weekly Review Dialog */}
             <WeeklyReviewDialog open={reviewOpen} onOpenChange={setReviewOpen} />
+
+            {/* Task Copy Dialog */}
+            <TaskCopyDialog
+                task={copyingTask}
+                open={copyDialogOpen}
+                onOpenChange={setCopyDialogOpen}
+            />
         </div>
     );
 }

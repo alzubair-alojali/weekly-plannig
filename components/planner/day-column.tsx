@@ -108,7 +108,7 @@ function AddTaskInline({ date }: AddTaskInlineProps) {
                                 "w-full rounded-md border border-slate-800 bg-slate-950/80 px-2.5 py-1.5",
                                 "text-xs text-foreground outline-none",
                                 "focus:border-priority-meeting/40",
-                                "[color-scheme:dark]",
+                                "scheme-dark",
                             )}
                         />
                     </motion.div>
@@ -169,6 +169,7 @@ interface DayColumnProps {
     weeklyChallenge?: string;
     challengeChecked?: boolean;
     onToggleChallenge?: (date: string) => void;
+    onCopyTask?: (task: Task) => void;
 }
 
 export function DayColumn({
@@ -180,6 +181,7 @@ export function DayColumn({
     weeklyChallenge,
     challengeChecked = false,
     onToggleChallenge,
+    onCopyTask,
 }: DayColumnProps) {
     const today = isDateToday(date);
     const dateLabel = formatDateAr(date);
@@ -304,7 +306,7 @@ export function DayColumn({
             {/* Task List */}
             <div className="flex-1 space-y-2 p-2">
                 {tasks.map((task) => (
-                    <TaskCard key={task.id} task={task} onEdit={onEditTask} />
+                    <TaskCard key={task.id} task={task} onEdit={onEditTask} onCopy={onCopyTask} />
                 ))}
 
                 {/* Empty state */}

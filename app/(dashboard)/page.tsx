@@ -16,6 +16,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useEffect } from "react";
+import { waitForAuth } from "@/lib/supabase";
 
 const stagger = {
   hidden: { opacity: 0 },
@@ -34,8 +36,17 @@ export default function DashboardPage() {
   const tasks = usePlannerStore((s) => s.tasks);
   const brainDumpTasks = usePlannerStore((s) => s.brainDumpTasks);
   const currentDate = usePlannerStore((s) => s.currentDate);
+  const syncWeek = usePlannerStore((s) => s.syncWeek);
+  const weekId = usePlannerStore((s) => s.weekId);
 
-  const weekRange = formatWeekRange(currentDate);
+  // Sync tasks when dashboard mounts or date changes
+  useEffect(() => {
+    waitForAuth().then((uid) => {
+      if (uid) {
+        syncWeek(currentDate);
+      }
+    });
+  }, [currentDate, syncWeek]);
 
   const stats = useMemo(() => {
     const total = tasks.length;
