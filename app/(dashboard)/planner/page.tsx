@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { usePlannerStore } from "@/lib/planner-store";
 import { waitForAuth } from "@/lib/supabase";
+import { getWeekId } from "@/lib/week-utils";
 import { WeekNavigator } from "@/components/planner/week-navigator";
 import { PlannerGrid } from "@/components/planner/planner-grid";
 import { TaskEditDialog } from "@/components/planner/task-edit-dialog";
@@ -45,6 +46,17 @@ export default function PlannerPage() {
                 setAuthReady(!!uid);
             }
         });
+
+        // Check for date param
+        const params = new URLSearchParams(window.location.search);
+        const dateParam = params.get("date");
+        if (dateParam) {
+            const targetDate = new Date(dateParam);
+            if (!isNaN(targetDate.getTime())) {
+                usePlannerStore.setState({ currentDate: targetDate, weekId: getWeekId(targetDate) });
+            }
+        }
+
         return () => { cancelled = true; };
     }, []);
 

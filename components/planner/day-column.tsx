@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { usePlannerStore } from "@/lib/planner-store";
 import { isDateToday, formatDateAr } from "@/lib/week-utils";
 import { TaskCard } from "./task-card";
-import { Plus, Trophy, Clock } from "lucide-react";
+import { Plus, Trophy, Clock, Moon } from "lucide-react";
 import { useState, useRef, useCallback } from "react";
 import type { Task, Priority } from "@/types";
 import { PriorityBadge } from "@/components/ui/priority-badge";
@@ -169,6 +169,9 @@ interface DayColumnProps {
     weeklyChallenge?: string;
     challengeChecked?: boolean;
     onToggleChallenge?: (date: string) => void;
+    onTogetherRestDay?: (date: string) => void; // Typo fix later
+    isRestDay?: boolean;
+    onToggleRestDay?: (date: string) => void;
     onCopyTask?: (task: Task) => void;
 }
 
@@ -182,6 +185,8 @@ export function DayColumn({
     challengeChecked = false,
     onToggleChallenge,
     onCopyTask,
+    isRestDay = false,
+    onToggleRestDay,
 }: DayColumnProps) {
     const today = isDateToday(date);
     const dateLabel = formatDateAr(date);
@@ -231,17 +236,19 @@ export function DayColumn({
             {/* Column Header */}
             <div
                 className={cn(
-                    "flex items-center justify-between px-3 py-2.5 border-b",
-                    today
-                        ? "border-cyber-blue/20 bg-cyber-blue/5"
-                        : "border-slate-800/60",
+                    "flex items-center justify-between px-3 py-2.5 border-b transition-colors",
+                    isRestDay
+                        ? "border-emerald-500/20 bg-emerald-500/10"
+                        : today
+                            ? "border-cyber-blue/20 bg-cyber-blue/5"
+                            : "border-slate-800/60",
                 )}
             >
                 <div className="flex items-center gap-2">
                     <h3
                         className={cn(
                             "text-sm font-bold",
-                            today ? "text-cyber-blue" : "text-foreground",
+                            isRestDay ? "text-emerald-400" : today ? "text-cyber-blue" : "text-foreground",
                         )}
                     >
                         {label}
@@ -251,8 +258,27 @@ export function DayColumn({
                             اليوم
                         </span>
                     )}
+                    {isRestDay && (
+                        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 flex items-center gap-1">
+                            <Moon className="h-3 w-3" />
+                            راحة
+                        </span>
+                    )}
                 </div>
                 <div className="flex items-center gap-1.5">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleRestDay?.(date);
+                        }}
+                        className={cn(
+                            "rounded-full p-1 transition-colors hover:bg-slate-800",
+                            isRestDay ? "text-emerald-400" : "text-slate-500 hover:text-emerald-400"
+                        )}
+                        title={isRestDay ? "إلغاء يوم الراحة" : "تعيين كيوم راحة"}
+                    >
+                        <Moon className="h-3.5 w-3.5" />
+                    </button>
                     <span className="text-[11px] text-muted-foreground">{dateLabel}</span>
                     {tasks.length > 0 && (
                         <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">

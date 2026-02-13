@@ -97,10 +97,19 @@ interface PlannerState {
     getWeeklyChallenge: () => string;
     getChallengeProgress: () => string[];
     getVisitedWeeks: () => { weekId: string; challenge: string; taskCount: number; completedCount: number; hasReview: boolean }[];
+    toggleRestDay: (date: string) => void;
 
     // Selectors
+    // Sorting preferences
+    sortPreferences: string[]; // e.g. ['meeting', 'priority', 'order']
+    updateSortPreferences: (newOrder: string[]) => void;
+
+    // ── Selectors ──
     getTasksForDate: (date: string) => Task[];
     getDayColumns: () => { id: DayOfWeek; label: string; date: string; tasks: Task[] }[];
+
+    // Delete Week
+    deleteCurrentWeek: () => Promise<void>;
 }
 
 export const usePlannerStore = create<PlannerState>((set, get) => {
@@ -116,6 +125,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
         brainDumpTasks: [],
         reviews: [],
         weekMetas: [],
+        sortPreferences: ["meeting", "priority", "order"], // Default order
 
         // ── Supabase Sync ──
         syncWeek: async (overrideDate?: Date) => {
@@ -150,6 +160,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                                 weekDbId,
                                 weeklyChallenge: weekRow.weekly_challenge ?? m.weeklyChallenge,
                                 challengeProgress: weekRow.challenge_progress ?? m.challengeProgress ?? [],
+                                restDay: weekRow.rest_day ?? m.restDay ?? null,
                             }
                             : m,
                     )
@@ -160,6 +171,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                             weekDbId,
                             weeklyChallenge: weekRow.weekly_challenge ?? "",
                             challengeProgress: weekRow.challenge_progress ?? [],
+                            restDay: weekRow.rest_day ?? null,
                             createdAt: weekRow.created_at,
                         },
                     ];
@@ -251,7 +263,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                         : {
                             weekMetas: [
                                 ...s.weekMetas,
-                                { weekId: s.weekId, weekDbId: s.weekDbId, weeklyChallenge: "", challengeProgress: [], createdAt: new Date().toISOString() },
+                                { weekId: s.weekId, weekDbId: s.weekDbId, weeklyChallenge: "", challengeProgress: [], restDay: null, createdAt: new Date().toISOString() },
                             ],
                         }),
                 }));
@@ -489,7 +501,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                 set((s) => ({
                     weekMetas: [
                         ...s.weekMetas,
-                        { weekId: s.weekId, weekDbId: s.weekDbId, weeklyChallenge: challenge, challengeProgress: [], createdAt: new Date().toISOString() },
+                        { weekId: s.weekId, weekDbId: s.weekDbId, weeklyChallenge: challenge, challengeProgress: [], restDay: null, createdAt: new Date().toISOString() },
                     ],
                 }));
             }
@@ -518,7 +530,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                 set((s) => ({
                     weekMetas: [
                         ...s.weekMetas,
-                        { weekId: s.weekId, weekDbId: s.weekDbId, weeklyChallenge: "", challengeProgress: updated, createdAt: new Date().toISOString() },
+                        { weekId: s.weekId, weekDbId: s.weekDbId, weeklyChallenge: "", challengeProgress: updated, restDay: null, createdAt: new Date().toISOString() },
                     ],
                 }));
             }
@@ -551,45 +563,73 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
             state.reviews.forEach((r) => weekIds.add(r.weekId));
             state.weekMetas.forEach((m) => weekIds.add(m.weekId));
 
-            return Array.from(weekIds)
-                .sort((a, b) => b.localeCompare(a)) // newest first
-                .map((wid) => {
-                    const weekTasks = state.tasks.filter((t) => t.weekId === wid);
-                    return {
-                        weekId: wid,
-                        challenge: state.weekMetas.find((m) => m.weekId === wid)?.weeklyChallenge ?? "",
-                        taskCount: weekTasks.length,
-                        completedCount: weekTasks.filter((t) => t.isCompleted).length,
-                        hasReview: state.reviews.some((r) => r.weekId === wid),
-                    };
-                });
+            return Array.from(weekIds).map(weekId => {
+                const meta = state.weekMetas.find(m => m.weekId === weekId);
+                const review = state.reviews.find(r => r.weekId === weekId);
+                const tasks = state.tasks.filter(t => t.weekId && t.date && getWeekId(new Date(t.date)) === weekId);
+
+                return {
+                    weekId,
+                    challenge: meta?.weeklyChallenge ?? "",
+                    taskCount: tasks.length,
+                    completedCount: tasks.filter(t => t.isCompleted).length,
+                    hasReview: !!review
+                };
+            });
         },
 
+        toggleRestDay: async (date: string) => {
+            const state = get();
+            const { weekId, weekDbId } = state;
+            const meta = state.getWeekMeta(weekId);
+
+            // Toggle logic: if same date, unset it. If different, set it.
+            const currentRestDay = meta?.restDay;
+            const newRestDay = currentRestDay === date ? null : date;
+
+            // Optimistic update
+            set({
+                weekMetas: state.weekMetas.map((m) =>
+                    m.weekId === weekId ? { ...m, restDay: newRestDay } : m
+                ),
+            });
+
+            if (weekDbId) {
+                await updateWeekInDb(weekDbId, { rest_day: newRestDay });
+            }
+        },
+
+
         // ── Selectors ──
+        updateSortPreferences: (newOrder) => set({ sortPreferences: newOrder }),
+
         getTasksForDate: (date) => {
-            return get()
-                .tasks.filter((t) => t.date === date)
+            const state = get();
+            return state.tasks
+                .filter((t) => t.date === date)
                 .sort((a, b) => {
-                    // 1. Meetings first (checking startTime or priority)
-                    const aIsMeeting = a.startTime || a.priority === "meeting";
-                    const bIsMeeting = b.startTime || b.priority === "meeting";
-
-                    if (aIsMeeting && !bIsMeeting) return -1;
-                    if (!aIsMeeting && bIsMeeting) return 1;
-
-                    // If both are meetings, sort by time if available
-                    if (aIsMeeting && bIsMeeting && a.startTime && b.startTime) {
-                        return a.startTime.localeCompare(b.startTime);
+                    for (const criteria of state.sortPreferences) {
+                        if (criteria === "meeting") {
+                            const aIsMeeting = a.startTime || a.priority === "meeting";
+                            const bIsMeeting = b.startTime || b.priority === "meeting";
+                            if (aIsMeeting && !bIsMeeting) return -1;
+                            if (!aIsMeeting && bIsMeeting) return 1;
+                            // If both, sort by time?
+                            if (aIsMeeting && bIsMeeting && a.startTime && b.startTime) {
+                                const timeDiff = a.startTime.localeCompare(b.startTime);
+                                if (timeDiff !== 0) return timeDiff;
+                            }
+                        } else if (criteria === "priority") {
+                            const pOrder = { high: 0, medium: 1, low: 2, meeting: 3 };
+                            // meeting priority is handled distinctly usually, but as a fallback
+                            const pa = pOrder[a.priority as keyof typeof pOrder] ?? 1;
+                            const pb = pOrder[b.priority as keyof typeof pOrder] ?? 1;
+                            if (pa !== pb) return pa - pb;
+                        } else if (criteria === "order") {
+                            if (Math.abs(a.order - b.order) > 0.0001) return a.order - b.order;
+                        }
                     }
-
-                    // 2. Priority: High > Medium > Low
-                    const pOrder = { high: 0, medium: 1, low: 2, meeting: -1 }; // meeting handled above generally
-                    const pa = pOrder[a.priority as keyof typeof pOrder] ?? 1;
-                    const pb = pOrder[b.priority as keyof typeof pOrder] ?? 1;
-                    if (pa !== pb) return pa - pb;
-
-                    // 3. Manual Order
-                    return a.order - b.order;
+                    return a.order - b.order; // Fallback
                 });
         },
 
@@ -600,24 +640,26 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
             // Re-use sorting logic
             const sortTasks = (tasks: Task[]) => {
                 return tasks.sort((a, b) => {
-                     // 1. Meetings
-                     const aIsMeeting = a.startTime || a.priority === "meeting";
-                     const bIsMeeting = b.startTime || b.priority === "meeting";
-                     if (aIsMeeting && !bIsMeeting) return -1;
-                     if (!aIsMeeting && bIsMeeting) return 1;
- 
-                     if (aIsMeeting && bIsMeeting && a.startTime && b.startTime) {
-                         return a.startTime.localeCompare(b.startTime);
-                     }
- 
-                     // 2. Priority
-                     const pOrder = { high: 0, medium: 1, low: 2, meeting: -1 };
-                     const pa = pOrder[a.priority as keyof typeof pOrder] ?? 1;
-                     const pb = pOrder[b.priority as keyof typeof pOrder] ?? 1;
-                     if (pa !== pb) return pa - pb;
- 
-                     // 3. Order
-                     return a.order - b.order;
+                    for (const criteria of state.sortPreferences) {
+                        if (criteria === "meeting") {
+                            const aIsMeeting = a.startTime || a.priority === "meeting";
+                            const bIsMeeting = b.startTime || b.priority === "meeting";
+                            if (aIsMeeting && !bIsMeeting) return -1;
+                            if (!aIsMeeting && bIsMeeting) return 1;
+                            if (aIsMeeting && bIsMeeting && a.startTime && b.startTime) {
+                                const timeDiff = a.startTime.localeCompare(b.startTime);
+                                if (timeDiff !== 0) return timeDiff;
+                            }
+                        } else if (criteria === "priority") {
+                            const pOrder = { high: 0, medium: 1, low: 2, meeting: 3 };
+                            const pa = pOrder[a.priority as keyof typeof pOrder] ?? 1;
+                            const pb = pOrder[b.priority as keyof typeof pOrder] ?? 1;
+                            if (pa !== pb) return pa - pb;
+                        } else if (criteria === "order") {
+                            if (Math.abs(a.order - b.order) > 0.0001) return a.order - b.order;
+                        }
+                    }
+                    return a.order - b.order;
                 });
             };
 
@@ -625,6 +667,32 @@ export const usePlannerStore = create<PlannerState>((set, get) => {
                 ...day,
                 tasks: sortTasks(state.tasks.filter((t) => t.date === day.date)),
             }));
+        },
+
+        deleteCurrentWeek: async () => {
+            const state = get();
+            const { weekDbId, weekId } = state;
+            if (!weekDbId) return;
+
+            set({ isSyncing: true });
+
+            // Optimistic update: clear tasks and metadata for this week
+            set({
+                tasks: state.tasks.filter(t => t.weekId !== weekDbId),
+                weekMetas: state.weekMetas.filter(m => m.weekId !== weekId),
+                reviews: state.reviews.filter(r => r.weekId !== weekId),
+                // Keep brain dump tasks as they are not tied to the week? 
+                // Actually they are global. But if the user put them in a week?
+                // Tasks with `weekId` are scheduled. Brain dump has `weekId: null`. 
+                // So we only delete tasks with this `weekId`.
+            });
+
+            // DB Delete
+            await import("@/lib/supabase-weeks").then(m => m.deleteWeekFromDb(weekDbId));
+
+            // Re-sync to get a fresh (empty) week
+            // This will create a NEW week record in DB
+            await get().syncWeek();
         },
     };
 });

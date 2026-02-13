@@ -46,15 +46,12 @@ export function PlannerGrid({ onEditTask, weeklyChallenge, onCopyTask, onStartRe
         [weekMetas, weekId],
     );
 
+    const getDayColumns = usePlannerStore((s) => s.getDayColumns);
+    const sortPreferences = usePlannerStore((s) => s.sortPreferences); // Subscribe to changes
+
     const columns = useMemo(() => {
-        const weekDays = getWeekDays(currentDate);
-        return weekDays.map((day) => ({
-            ...day,
-            tasks: tasks
-                .filter((t) => t.date === day.date)
-                .sort((a, b) => a.order - b.order),
-        }));
-    }, [currentDate, tasks]);
+        return getDayColumns();
+    }, [currentDate, tasks, getDayColumns, sortPreferences]);
 
     return (
         <motion.div
@@ -76,6 +73,8 @@ export function PlannerGrid({ onEditTask, weeklyChallenge, onCopyTask, onStartRe
                         weeklyChallenge={weeklyChallenge}
                         challengeChecked={challengeProgress.includes(col.date)}
                         onToggleChallenge={toggleChallengeDay}
+                        isRestDay={weekMetas.find(m => m.weekId === weekId)?.restDay === col.date}
+                        onToggleRestDay={(date) => usePlannerStore.getState().toggleRestDay(date)}
                     />
                 </motion.div>
             ))}

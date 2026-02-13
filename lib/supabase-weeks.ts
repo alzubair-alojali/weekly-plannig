@@ -107,6 +107,7 @@ export async function updateWeekInDb(
         review_good?: string;
         review_bad?: string;
         review_learned?: string;
+        rest_day?: string | null;
     },
 ): Promise<boolean> {
     const supabase = createClient();
@@ -142,4 +143,28 @@ export async function fetchAllWeeks(): Promise<WeekRow[]> {
     }
 
     return (data ?? []) as WeekRow[];
+}
+
+/**
+ * Delete a week and all its associated data.
+ */
+export async function deleteWeekFromDb(weekDbId: string): Promise<boolean> {
+    const userId = await waitForAuth();
+    if (!userId) return false;
+
+    const supabase = createClient();
+
+    // 1. Delete tasks for this week (if not cascade)
+    // We do this to be safe, though FK cascade might handle it.
+    await supabase.from("tasks").delete().eq("week_id", weekDbId);
+
+    // 2. Delete the week record
+    const { error } = await supabase.from("weeks").delete().eq("id", weekDbId);
+
+    if (error) {
+        console.error("[Weeks] ❌ Delete error:", error.message);
+        return false;
+    }
+    console.log("[Weeks] ✅ Deleted week:", weekDbId);
+    return true;
 }

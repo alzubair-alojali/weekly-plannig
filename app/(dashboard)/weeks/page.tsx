@@ -2,6 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
@@ -11,9 +20,10 @@ import {
     Trophy,
     ClipboardCheck,
     ArrowLeft,
+    Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fetchAllWeeks } from "@/lib/supabase-weeks";
+import { fetchAllWeeks, deleteWeekFromDb } from "@/lib/supabase-weeks";
 import { fetchTaskCountsByWeek } from "@/lib/supabase-tasks";
 import { waitForAuth } from "@/lib/supabase";
 import type { WeekRow } from "@/types";
@@ -91,7 +101,7 @@ function WeeksGridSkeleton() {
     );
 }
 
-function WeekCard({ week }: { week: WeekCardData }) {
+function WeekCard({ week, onDelete }: { week: WeekCardData; onDelete: (id: string) => void }) {
     const percentage =
         week.taskCount > 0
             ? Math.round((week.completedCount / week.taskCount) * 100)
@@ -103,7 +113,7 @@ function WeekCard({ week }: { week: WeekCardData }) {
 
     return (
         <motion.div variants={fadeUp}>
-            <Link href="/planner">
+            <Link href={`/planner?date=${week.weekRow.start_date}`}>
                 <GlassCard interactive className="space-y-3 cursor-pointer">
                     {/* Header row */}
                     <div className="flex items-start justify-between">
@@ -119,15 +129,27 @@ function WeekCard({ week }: { week: WeekCardData }) {
                             </div>
                         </div>
 
-                        {/* Review badge */}
-                        {hasReview && (
-                            <div className="flex items-center gap-1 rounded-full bg-cyber-neon/10 px-2 py-0.5">
-                                <ClipboardCheck className="h-3 w-3 text-cyber-neon" />
-                                <span className="text-[10px] font-semibold text-cyber-neon">
-                                    تمت المراجعة
-                                </span>
-                            </div>
-                        )}
+                        {/* Review badge & Actions */}
+                        <div className="flex items-center gap-2">
+                            {hasReview && (
+                                <div className="flex items-center gap-1 rounded-full bg-cyber-neon/10 px-2 py-0.5">
+                                    <ClipboardCheck className="h-3 w-3 text-cyber-neon" />
+                                    <span className="text-[10px] font-semibold text-cyber-neon">
+                                        تمت المراجعة
+                                    </span>
+                                </div>
+                            )}
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onDelete(week.weekRow.id);
+                                }}
+                                className="rounded-full p-1.5 text-slate-500 hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Challenge */}
@@ -179,6 +201,8 @@ function WeekCard({ week }: { week: WeekCardData }) {
 export default function WeeksPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [weeks, setWeeks] = useState<WeekCardData[]>([]);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [weekToDelete, setWeekToDelete] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -282,10 +306,53 @@ export default function WeeksPage() {
             ) : (
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                     {weeks.map((week) => (
-                        <WeekCard key={week.weekRow.id} week={week} />
+                        <WeekCard
+                            key={week.weekRow.id}
+                            week={week}
+                            onDelete={(id) => {
+                                setWeekToDelete(id);
+                                setIsDeleteDialogOpen(true);
+                            }}
+                        />
                     ))}
                 </div>
             )}
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>حذف الأسبوع</DialogTitle>
+                        <DialogDescription>
+                            هل أنت متأكد من أنك تريد حذف هذا الأسبوع وجميع المهام المرتبطة به؟ هذا الإجراء لا يمكن التراجع عنه.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsDeleteDialogOpen(false)}
+                            className="text-white hover:text-white"
+                        >
+                            إلغاء
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={async () => {
+                                if (weekToDelete) {
+                                    const success = await deleteWeekFromDb(weekToDelete);
+                                    if (success) {
+                                        setWeeks((prev) => prev.filter((w) => w.weekRow.id !== weekToDelete));
+                                    }
+                                    setIsDeleteDialogOpen(false);
+                                    setWeekToDelete(null);
+                                }
+                            }}
+                        >
+                            حذف الأسبوع
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </motion.div>
     );
 }

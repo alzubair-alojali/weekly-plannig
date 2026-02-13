@@ -21,7 +21,6 @@ export function WeeklyReviewCard({ onClick }: WeeklyReviewCardProps) {
             animate={{ opacity: 1, scale: 1 }}
             className="flex h-full min-h-125 w-full flex-col"
         >
-            {/* Header */}
             <div className="mb-3 flex items-center justify-between px-1">
                 <h3 className="flex items-center gap-2 font-bold text-cyber-blue">
                     <Sparkles className="h-4 w-4" />

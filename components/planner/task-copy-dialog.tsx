@@ -20,13 +20,26 @@ export function TaskCopyDialog({ task, open, onOpenChange }: TaskCopyDialogProps
     const duplicateTask = usePlannerStore((s) => s.duplicateTask);
     const weekDays = getWeekDays(currentDate);
 
-    const [selectedDate, setSelectedDate] = useState<string | null>(null);
+    const [selectedDates, setSelectedDates] = useState<string[]>([]);
+
+    const toggleDate = (date: string) => {
+        setSelectedDates((prev) =>
+            prev.includes(date)
+                ? prev.filter((d) => d !== date)
+                : [...prev, date]
+        );
+    };
 
     const handleCopy = () => {
-        if (!task || !selectedDate) return;
-        duplicateTask(task.id, selectedDate);
+        if (!task || selectedDates.length === 0) return;
+
+        // Copy to all selected dates
+        selectedDates.forEach((date) => {
+            duplicateTask(task.id, date);
+        });
+
         onOpenChange(false);
-        setSelectedDate(null);
+        setSelectedDates([]);
     };
 
     if (!task) return null;
@@ -50,28 +63,41 @@ export function TaskCopyDialog({ task, open, onOpenChange }: TaskCopyDialogProps
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                            <CalendarDays className="h-3.5 w-3.5" />
-                            <span>اختر اليوم للنسخ إليه</span>
-                        </label>
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 container">
+                                <CalendarDays className="h-3.5 w-3.5" />
+                                <span>اختر الأيام للنسخ إليها</span>
+                            </label>
+                            {selectedDates.length > 0 && (
+                                <span className="text-[10px] text-cyber-blue font-medium">
+                                    تم تحديد {selectedDates.length}
+                                </span>
+                            )}
+                        </div>
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                            {weekDays.map((day) => (
-                                <button
-                                    key={day.date}
-                                    onClick={() => setSelectedDate(day.date)}
-                                    className={cn(
-                                        "flex flex-col items-center justify-center gap-1 rounded-lg border p-2 transition-all",
-                                        selectedDate === day.date
-                                            ? "border-cyber-blue bg-cyber-blue/10 text-cyber-blue"
-                                            : "border-slate-800 bg-slate-900/30 text-muted-foreground hover:border-slate-700 hover:bg-slate-800/50"
-                                    )}
-                                >
-                                    <span className="text-xs font-semibold">{day.label}</span>
-                                    <span className="text-[10px] opacity-70">
-                                        {new Date(day.date).toLocaleDateString('en-US', { day: 'numeric', month: 'numeric' })}
-                                    </span>
-                                </button>
-                            ))}
+                            {weekDays.map((day) => {
+                                const isSelected = selectedDates.includes(day.date);
+                                return (
+                                    <button
+                                        key={day.date}
+                                        onClick={() => toggleDate(day.date)}
+                                        className={cn(
+                                            "flex flex-col items-center justify-center gap-1 rounded-lg border p-2 transition-all cursor-pointer relative",
+                                            isSelected
+                                                ? "border-cyber-blue bg-cyber-blue/10 text-cyber-blue"
+                                                : "border-slate-800 bg-slate-900/30 text-muted-foreground hover:border-slate-700 hover:bg-slate-800/50"
+                                        )}
+                                    >
+                                        <span className="text-xs font-semibold">{day.label}</span>
+                                        <span className="text-[10px] opacity-70">
+                                            {new Date(day.date).toLocaleDateString('en-US', { day: 'numeric', month: 'numeric' })}
+                                        </span>
+                                        {isSelected && (
+                                            <div className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-cyber-blue shadow-[0_0_5px_rgba(59,130,246,0.5)]" />
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
@@ -88,10 +114,10 @@ export function TaskCopyDialog({ task, open, onOpenChange }: TaskCopyDialogProps
                         variant="glow"
                         size="sm"
                         onClick={handleCopy}
-                        disabled={!selectedDate}
+                        disabled={selectedDates.length === 0}
                         className="gap-2"
                     >
-                        <span>نسخ المهمة</span>
+                        <span>نسخ ({selectedDates.length})</span>
                         <ArrowLeft className="h-3 w-3" />
                     </CyberButton>
                 </DialogFooter>

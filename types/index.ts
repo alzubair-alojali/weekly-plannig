@@ -56,6 +56,7 @@ export interface WeekRow {
     review_good: string | null;
     review_bad: string | null;
     review_learned: string | null;
+    rest_day: string | null; // ISO date string for the rest day
     created_at: string;
 }
 
@@ -74,6 +75,7 @@ export interface WeekMeta {
     weekDbId: string | null;  // UUID from weeks table
     weeklyChallenge: string;
     challengeProgress: string[]; // array of date strings (e.g., "2026-02-07")
+    restDay: string | null;
     createdAt: string;
 }
 

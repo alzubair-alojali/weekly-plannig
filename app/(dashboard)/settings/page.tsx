@@ -2,6 +2,7 @@
 
 import { GlassCard } from "@/components/ui/glass-card";
 import { CyberButton } from "@/components/ui/cyber-button";
+import { SortingSettings } from "@/components/settings/sorting-settings";
 import { usePlannerStore } from "@/lib/planner-store";
 import { motion } from "framer-motion";
 import {
@@ -161,6 +162,13 @@ export default function SettingsPage() {
                             <p className="text-[11px] text-muted-foreground">مراجعات</p>
                         </div>
                     </div>
+                </GlassCard>
+            </motion.div>
+
+            {/* Sorting Preferences */}
+            <motion.div variants={fadeUp}>
+                <GlassCard className="p-4">
+                    <SortingSettings />
                 </GlassCard>
             </motion.div>
 
